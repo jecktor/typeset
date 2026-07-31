@@ -1,0 +1,126 @@
+{
+  "name": "@pibytelabs/typeset",
+  "version": "0.3.1",
+  "description": "Visual PDF template designer and headless renderer",
+  "author": "jecktor <vek@unsteady.life>",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jecktor/typeset.git"
+  },
+  "homepage": "https://github.com/jecktor/typeset#readme",
+  "bugs": "https://github.com/jecktor/typeset/issues",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/core/index.d.ts",
+        "default": "./dist/core/index.js"
+      },
+      "require": {
+        "types": "./dist/core/index.d.cts",
+        "default": "./dist/core/index.cjs"
+      }
+    },
+    "./core": {
+      "import": {
+        "types": "./dist/core/index.d.ts",
+        "default": "./dist/core/index.js"
+      },
+      "require": {
+        "types": "./dist/core/index.d.cts",
+        "default": "./dist/core/index.cjs"
+      }
+    },
+    "./render": {
+      "import": {
+        "types": "./dist/render/index.d.ts",
+        "default": "./dist/render/index.js"
+      },
+      "require": {
+        "types": "./dist/render/index.d.cts",
+        "default": "./dist/render/index.cjs"
+      }
+    },
+    "./editor": {
+      "import": {
+        "types": "./dist/editor/index.d.ts",
+        "default": "./dist/editor/index.js"
+      },
+      "require": {
+        "types": "./dist/editor/index.d.cts",
+        "default": "./dist/editor/index.cjs"
+      }
+    },
+    "./module": {
+      "import": {
+        "types": "./dist/module/index.d.ts",
+        "default": "./dist/module/index.js"
+      },
+      "require": {
+        "types": "./dist/module/index.d.cts",
+        "default": "./dist/module/index.cjs"
+      }
+    },
+    "./editor/styles.css": "./dist/editor/styles.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup && mkdir -p dist/editor && cp src/editor/styles.css dist/editor/styles.css",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "playground": "vite --config playground/vite.config.ts"
+  },
+  "dependencies": {
+    "zustand": "^5.0.3"
+  },
+  "peerDependencies": {
+    "@pdf-lib/fontkit": ">=1",
+    "pdf-lib": ">=1.17",
+    "pdfjs-dist": ">=5 <6",
+    "react": ">=19",
+    "react-dom": ">=19",
+    "react-pdf": ">=10",
+    "zod": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "@pdf-lib/fontkit": {
+      "optional": true
+    },
+    "pdfjs-dist": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "react-pdf": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.0.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.4.296",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-pdf": "^10.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.4",
+    "zod": "^3.25.76"
+  },
+  "publishConfig": {
+    "registry": "https://registry.alagrandelepusecuca.mx/"
+  }
+}

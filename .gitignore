@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+tests/__output__/
+validation/increscendo/out/
+
+# local registry auth
+.npmrc
