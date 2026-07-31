@@ -1,7 +1,7 @@
 # Integrating @pibytelabs/typeset
 
 Developer guide for wiring the package into an app. End users never read
-this — the editor teaches itself (first-run tour, contextual hints); this
+this: the editor teaches itself (first-run tour, contextual hints); this
 document is for the person writing the glue code.
 
 ## Install
@@ -50,7 +50,7 @@ export async function buildPdf(record: MyRecord): Promise<Uint8Array> {
     data: record as unknown as Record<string, unknown>,
     assets: {
       async resolve(assetId) {
-        // backgrounds, logos, fonts — however your app stores them
+        // backgrounds, logos, fonts (however your app stores them)
         return new Uint8Array(await fs.readFile(pathFor(assetId)));
       }
     },
@@ -104,7 +104,7 @@ const factura: ModelDescriptor = {
 Rules of thumb:
 
 - `key` is a dot path into the data object you pass at render time. Same
-  contract in the editor and in `renderPdf` — no mapping layer.
+  contract in the editor and in `renderPdf` with no mapping layer.
 - **`sample` is required and load-bearing**: it powers the canvas preview,
   the content-area ghost, and preview mode. Include one short and one long
   list item so authors see real wrapping.
@@ -134,7 +134,7 @@ const storage: TemplateStorageAdapter = {
 />;
 ```
 
-- The module never talks to a backend directly — persistence is entirely the
+- The module never talks to a backend directly; persistence is entirely the
   adapter's job. `localStorageAdapter()` ships for demos/playgrounds.
 - `onAssetUpload` receives background PDFs and images; return the id your
   `assets` resolver will later understand. The package never stores files.
@@ -143,12 +143,12 @@ const storage: TemplateStorageAdapter = {
   editor's first-run tutorial.
 
 Need only the canvas? Use `<TemplateEditor value onChange models assets/>`
-directly — it's a controlled component (`onChange` debounced 500 ms).
+directly. It is a controlled component (`onChange` debounced 500 ms).
 
 ## pdfjs worker (read this once)
 
-`pdfjs-dist` must resolve to ONE copy, and the worker must match its version
-— duplicates produce "API version does not match the Worker version". That's
+`pdfjs-dist` must resolve to ONE copy, and the worker must match its version;
+mismatched copies produce "API version does not match the Worker version". That's
 why it's a peer dependency. Pass the worker explicitly:
 
 ```ts
@@ -192,7 +192,7 @@ Available keys/variables: `accent`, `accentSoft`, `surface`, `panel`,
 - Templates carry `schemaVersion`; always load through `parseTemplate` (it
   validates and migrates old versions, and refuses versions newer than the
   installed library).
-- `validateTemplate(template, descriptor)` returns errors/warnings — call it
+- `validateTemplate(template, descriptor)` returns errors/warnings; call it
   server-side before persisting if clients can't be trusted.
 - Coordinates are PDF points, top-left origin. Page size comes from the
   wizard's document type (carta 612×792, oficio 612×936, or custom).
