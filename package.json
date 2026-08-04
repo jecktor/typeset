@@ -1,6 +1,6 @@
 {
   "name": "@pibytelabs/typeset",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Visual PDF template designer and headless renderer",
   "author": "jecktor <vek@unsteady.life>",
   "license": "UNLICENSED",
