@@ -78,9 +78,9 @@ function EditorShell({
   const setZoom = useEditor(s => s.setZoom);
   const zoomMode = useEditor(s => s.zoomMode);
   const setZoomMode = useEditor(s => s.setZoomMode);
-  const selectedId = useEditor(s => s.selectedId);
+  const hasSelection = useEditor(s => s.selectedIds.length > 0);
   const selectedFlowId = useEditor(s => s.selectedFlowId);
-  const removeElement = useEditor(s => s.removeElement);
+  const removeSelected = useEditor(s => s.removeSelected);
   const deselect = useEditor(s => s.deselect);
   const placing = useEditor(s => s.placing);
   const setPlacing = useEditor(s => s.setPlacing);
@@ -137,11 +137,11 @@ function EditorShell({
       target.tagName === 'SELECT';
     if (e.key === 'Escape') {
       if (placing) setPlacing(null);
-      else if (!inField && (selectedId || selectedFlowId)) deselect();
+      else if (!inField && (hasSelection || selectedFlowId)) deselect();
     }
-    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !inField) {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && hasSelection && !inField) {
       e.preventDefault();
-      removeElement(selectedId);
+      removeSelected();
     }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !inField) {
       e.preventDefault();

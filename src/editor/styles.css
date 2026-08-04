@@ -1011,6 +1011,18 @@
   border-color: color-mix(in srgb, var(--_pde-danger) 45%, var(--_pde-border));
   background: color-mix(in srgb, var(--_pde-danger) 6%, var(--_pde-panel));
 }
+.pde-align-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.pde-align-grid--2 {
+  grid-template-columns: 1fr 1fr;
+}
+.pde-align-grid .pde-btn {
+  padding: 5px 4px;
+  font-size: 12px;
+}
 /* Input with a unit suffix ("cm"); native spinners hidden so the unit
    doesn't collide with them (arrow keys still step). */
 .pde-field__unit {

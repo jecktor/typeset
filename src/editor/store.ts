@@ -10,12 +10,15 @@ import type {
   ValueFormat
 } from '../core';
 import {
-  applyMove,
+  alignRects,
   applyResize,
+  distributeRects,
   frameToRect,
   rectToFrame,
   snapMovingRect,
   snapResizingRect,
+  type AlignMode,
+  type Rect,
   type ResizeCorner
 } from './geometry';
 
@@ -37,9 +40,23 @@ export interface PlacingSpec {
 type InteractionState =
   | {
       target: 'element';
-      kind: 'move' | 'resize';
+      kind: 'move';
+      /** The grabbed element; the group snaps through it. */
       elementId: string;
-      corner?: ResizeCorner;
+      startX: number;
+      startY: number;
+      /** Frames of every selected element at pointerdown. */
+      originals: Array<{ id: string; frame: TemplateElement['frame'] }>;
+      /** True once the pointer produced a nonzero delta (drag vs tap). */
+      moved: boolean;
+      /** Tap on a multi-selected element collapses the selection to it. */
+      collapseOnTap: boolean;
+    }
+  | {
+      target: 'element';
+      kind: 'resize';
+      elementId: string;
+      corner: ResizeCorner;
       startX: number;
       startY: number;
       original: TemplateElement['frame'];
@@ -62,7 +79,8 @@ export interface EditorState {
   zoomMode: 'fit' | 'manual';
   scopeTab: ScopeTab;
   mode: EditorMode;
-  selectedId: string | null;
+  /** Selected element ids; more than one enables align/distribute. */
+  selectedIds: string[];
   selectedFlowId: string | null;
   placing: PlacingSpec | null;
   interaction: InteractionState | null;
@@ -82,10 +100,15 @@ export interface EditorState {
   updateElement(id: string, patch: Partial<TemplateElement>): void;
   addElement(element: TemplateElement): void;
   removeElement(id: string): void;
-  select(id: string | null): void;
+  /** Replaces the selection; with additive, toggles the id in/out of it. */
+  select(id: string | null, additive?: boolean): void;
   selectFlowItem(id: string | null): void;
   /** Clears both element and flow-item selection. */
   deselect(): void;
+  /** Removes every selected element in one undo step. */
+  removeSelected(): void;
+  alignSelected(mode: AlignMode): void;
+  distributeSelected(axis: 'h' | 'v'): void;
   setZoom(zoom: number): void;
   /** Applied by the canvas while in fit mode; keeps zoomMode untouched. */
   setFitZoom(zoom: number): void;
@@ -174,7 +197,7 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
       zoomMode: 'fit',
       scopeTab: 'first',
       mode: 'edit',
-      selectedId: null,
+      selectedIds: [],
       selectedFlowId: null,
       placing: null,
       interaction: null,
@@ -202,7 +225,7 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
             ...get().template,
             elements: [...get().template.elements, element]
           },
-          { selectedId: element.id, selectedFlowId: null, placing: null }
+          { selectedIds: [element.id], selectedFlowId: null, placing: null }
         ),
       removeElement: id =>
         commit(
@@ -212,19 +235,91 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
             elements: get().template.elements.filter(el => el.id !== id)
           },
           {
-            selectedId: get().selectedId === id ? null : get().selectedId,
+            selectedIds: get().selectedIds.filter(s => s !== id),
             editingId: get().editingId === id ? null : get().editingId
           }
         ),
-      select: id =>
-        set(id ? { selectedId: id, selectedFlowId: null } : { selectedId: null }),
+      removeSelected: () => {
+        const state = get();
+        if (state.selectedIds.length === 0) return;
+        const ids = new Set(state.selectedIds);
+        commit(
+          'rm-selected',
+          {
+            ...state.template,
+            elements: state.template.elements.filter(el => !ids.has(el.id))
+          },
+          {
+            selectedIds: [],
+            editingId:
+              state.editingId && ids.has(state.editingId) ? null : state.editingId
+          }
+        );
+      },
+      select: (id, additive = false) =>
+        set(state => {
+          if (!id) return { selectedIds: [] };
+          if (!additive) return { selectedIds: [id], selectedFlowId: null };
+          return {
+            selectedIds: state.selectedIds.includes(id)
+              ? state.selectedIds.filter(s => s !== id)
+              : [...state.selectedIds, id],
+            selectedFlowId: null
+          };
+        }),
       setEditing: id => set({ editingId: id }),
       setShowMargins: show => set({ showMargins: show }),
       requestPanelFocus: () =>
         set(state => ({ panelFocusNonce: state.panelFocusNonce + 1 })),
       selectFlowItem: id =>
-        set(id ? { selectedFlowId: id, selectedId: null } : { selectedFlowId: null }),
-      deselect: () => set({ selectedId: null, selectedFlowId: null }),
+        set(id ? { selectedFlowId: id, selectedIds: [] } : { selectedFlowId: null }),
+      deselect: () => set({ selectedIds: [], selectedFlowId: null }),
+      alignSelected: mode => {
+        const state = get();
+        const { height: pageH } = state.template.pageSize;
+        const els = state.template.elements.filter(el =>
+          state.selectedIds.includes(el.id)
+        );
+        if (els.length < 2) return;
+        const next = alignRects(
+          els.map(el => frameToRect(el.frame, pageH)),
+          mode
+        );
+        const frameById = new Map(
+          els.map((el, i) => [el.id, rectToFrame(next[i]!, el.frame.anchor, pageH)])
+        );
+        commit(`align:${mode}`, {
+          ...state.template,
+          elements: state.template.elements.map(el =>
+            frameById.has(el.id)
+              ? ({ ...el, frame: frameById.get(el.id)! } as TemplateElement)
+              : el
+          )
+        });
+      },
+      distributeSelected: axis => {
+        const state = get();
+        const { height: pageH } = state.template.pageSize;
+        const els = state.template.elements.filter(el =>
+          state.selectedIds.includes(el.id)
+        );
+        if (els.length < 3) return;
+        const next = distributeRects(
+          els.map(el => frameToRect(el.frame, pageH)),
+          axis
+        );
+        const frameById = new Map(
+          els.map((el, i) => [el.id, rectToFrame(next[i]!, el.frame.anchor, pageH)])
+        );
+        commit(`distribute:${axis}`, {
+          ...state.template,
+          elements: state.template.elements.map(el =>
+            frameById.has(el.id)
+              ? ({ ...el, frame: frameById.get(el.id)! } as TemplateElement)
+              : el
+          )
+        });
+      },
       setZoom: zoom =>
         set({ zoom: Math.min(3, Math.max(0.25, zoom)), zoomMode: 'manual' }),
       setFitZoom: zoom => {
@@ -233,7 +328,7 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
         set({ zoom: next });
       },
       setZoomMode: zoomMode => set({ zoomMode }),
-      setScopeTab: tab => set({ scopeTab: tab, selectedId: null }),
+      setScopeTab: tab => set({ scopeTab: tab, selectedIds: [] }),
       setMode: mode =>
         set(state => ({
           mode,
@@ -308,7 +403,7 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
             ...flow,
             stack: [...flow.stack, item]
           })),
-          { selectedFlowId: item.id, selectedId: null }
+          { selectedFlowId: item.id, selectedIds: [] }
         ),
       updateFlowItem: (id, patch) =>
         commit(
@@ -347,18 +442,41 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
         const state = get();
         const el = state.template.elements.find(e => e.id === elementId);
         if (!el) return;
+        if (kind === 'resize') {
+          set({
+            ...snapshot(state),
+            selectedIds: [elementId],
+            selectedFlowId: null,
+            interaction: {
+              target: 'element',
+              kind,
+              elementId,
+              corner: corner!,
+              startX: x,
+              startY: y,
+              original: { ...el.frame }
+            }
+          });
+          return;
+        }
+        // Grabbing a selected element drags the whole selection along.
+        const inSelection = state.selectedIds.includes(elementId);
+        const group = inSelection ? state.selectedIds : [elementId];
         set({
           ...snapshot(state),
-          selectedId: elementId,
+          selectedIds: group,
           selectedFlowId: null,
           interaction: {
             target: 'element',
             kind,
             elementId,
-            corner,
             startX: x,
             startY: y,
-            original: { ...el.frame }
+            originals: state.template.elements
+              .filter(e => group.includes(e.id))
+              .map(e => ({ id: e.id, frame: { ...e.frame } })),
+            moved: false,
+            collapseOnTap: inSelection && state.selectedIds.length > 1
           }
         });
       },
@@ -391,16 +509,16 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
           set({ template: next, guides });
 
         if (interaction.target === 'element') {
-          const moved =
+          // Snap against the other elements visible on this tab + region and
+          // margin edges. Every moving element is excluded as a target.
+          const movingIds = new Set(
             interaction.kind === 'move'
-              ? applyMove(interaction.original, dx, dy, pageW, pageH)
-              : applyResize(interaction.original, interaction.corner!, dx, dy, pageH);
-          if (!moved) return;
-
-          // Snap against the other elements visible on this tab + region edges.
+              ? interaction.originals.map(o => o.id)
+              : [interaction.elementId]
+          );
           const visible = scopesForTab(state.scopeTab);
           const targets = template.elements
-            .filter(e => e.id !== interaction.elementId && visible.includes(e.scope))
+            .filter(e => !movingIds.has(e.id) && visible.includes(e.scope))
             .map(e => frameToRect(e.frame, pageH));
           const region =
             state.scopeTab !== 'last' ? template.flow?.regions[state.scopeTab] : undefined;
@@ -421,24 +539,91 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
               height: pageH - margins.top - margins.bottom
             });
           }
-          const rect = frameToRect(moved, pageH);
-          const snapped =
-            interaction.kind === 'move'
-              ? snapMovingRect(rect, targets, pageW, pageH)
-              : snapResizingRect(rect, interaction.corner!, targets, pageW, pageH);
-          const frame = rectToFrame(snapped.rect, moved.anchor, pageH);
 
-          setTemplateRaw(
-            {
+          if (interaction.kind === 'resize') {
+            const resized = applyResize(
+              interaction.original,
+              interaction.corner,
+              dx,
+              dy,
+              pageH
+            );
+            if (!resized) return;
+            const rect = frameToRect(resized, pageH);
+            const snapped = snapResizingRect(
+              rect,
+              interaction.corner,
+              targets,
+              pageW,
+              pageH
+            );
+            const frame = rectToFrame(snapped.rect, resized.anchor, pageH);
+            setTemplateRaw(
+              {
+                ...template,
+                elements: template.elements.map(el =>
+                  el.id === interaction.elementId
+                    ? ({ ...el, frame } as TemplateElement)
+                    : el
+                )
+              },
+              { x: snapped.guidesX, y: snapped.guidesY }
+            );
+            return;
+          }
+
+          // Group move: one shared delta, clamped so the selection's bounding
+          // box stays on the page, snapped through the grabbed element.
+          const rects = interaction.originals.map(o => ({
+            id: o.id,
+            rect: frameToRect(o.frame, pageH)
+          }));
+          const minX = Math.min(...rects.map(r => r.rect.x));
+          const maxX = Math.max(...rects.map(r => r.rect.x + r.rect.width));
+          const minY = Math.min(...rects.map(r => r.rect.y));
+          const maxY = Math.max(...rects.map(r => r.rect.y + r.rect.height));
+          const clamp = (v: number, lo: number, hi: number) =>
+            Math.min(Math.max(v, lo), Math.max(lo, hi));
+          const cdx = clamp(dx, -minX, pageW - maxX);
+          const cdy = clamp(dy, -minY, pageH - maxY);
+          const grabbed =
+            rects.find(r => r.id === interaction.elementId) ?? rects[0]!;
+          const anchorRect: Rect = {
+            ...grabbed.rect,
+            x: grabbed.rect.x + cdx,
+            y: grabbed.rect.y + cdy
+          };
+          const snapped = snapMovingRect(anchorRect, targets, pageW, pageH);
+          const sdx = cdx + (snapped.rect.x - anchorRect.x);
+          const sdy = cdy + (snapped.rect.y - anchorRect.y);
+          const frameById = new Map(
+            interaction.originals.map(o => {
+              const r = frameToRect(o.frame, pageH);
+              return [
+                o.id,
+                rectToFrame(
+                  { ...r, x: r.x + sdx, y: r.y + sdy },
+                  o.frame.anchor,
+                  pageH
+                )
+              ];
+            })
+          );
+          set({
+            template: {
               ...template,
               elements: template.elements.map(el =>
-                el.id === interaction.elementId
-                  ? ({ ...el, frame } as TemplateElement)
+                frameById.has(el.id)
+                  ? ({ ...el, frame: frameById.get(el.id)! } as TemplateElement)
                   : el
               )
             },
-            { x: snapped.guidesX, y: snapped.guidesY }
-          );
+            guides: { x: snapped.guidesX, y: snapped.guidesY },
+            interaction:
+              interaction.moved || dx !== 0 || dy !== 0
+                ? { ...interaction, moved: true }
+                : interaction
+          });
           return;
         }
 
@@ -465,7 +650,19 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
           null
         );
       },
-      endInteraction: () => set({ interaction: null, guides: null })
+      endInteraction: () =>
+        set(state => {
+          const it = state.interaction;
+          const next: Partial<EditorState> = { interaction: null, guides: null };
+          if (it?.target === 'element' && it.kind === 'move' && !it.moved) {
+            // Tap, not a drag: the template didn't change, so drop the
+            // snapshot pushed at pointerdown (keeps undo meaningful)...
+            next.history = state.history.slice(0, -1);
+            // ...and clicking one element of a multi-selection singles it out.
+            if (it.collapseOnTap) next.selectedIds = [it.elementId];
+          }
+          return next;
+        })
     };
   });
 }

@@ -7,6 +7,7 @@ import type {
   TextStyle
 } from '../core';
 import { StyleFields } from './fields';
+import type { AlignMode } from './geometry';
 import { useEditor } from './store';
 
 /** Per-layout background PDF: own, inherited from an earlier layout, or none. */
@@ -266,9 +267,87 @@ function NumberField({
   );
 }
 
+const ALIGN_ACTIONS: Array<{ mode: AlignMode; label: string }> = [
+  { mode: 'left', label: 'Izquierda' },
+  { mode: 'center', label: 'Centro' },
+  { mode: 'right', label: 'Derecha' },
+  { mode: 'top', label: 'Arriba' },
+  { mode: 'middle', label: 'Medio' },
+  { mode: 'bottom', label: 'Abajo' }
+];
+
+/** Shown while 2+ elements are selected: align, distribute, delete. */
+function MultiSelectionPanel() {
+  const count = useEditor(s => s.selectedIds.length);
+  const alignSelected = useEditor(s => s.alignSelected);
+  const distributeSelected = useEditor(s => s.distributeSelected);
+  const removeSelected = useEditor(s => s.removeSelected);
+
+  return (
+    <aside className="pde-props">
+      <div className="pde-props__header">
+        <h3 className="pde-panel__title">{count} elementos</h3>
+        <button
+          type="button"
+          className="pde-btn pde-btn--danger"
+          onClick={removeSelected}
+        >
+          Eliminar
+        </button>
+      </div>
+
+      <section>
+        <h3 className="pde-panel__title">Alinear</h3>
+        <div className="pde-align-grid">
+          {ALIGN_ACTIONS.map(a => (
+            <button
+              key={a.mode}
+              type="button"
+              className="pde-btn"
+              onClick={() => alignSelected(a.mode)}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="pde-panel__title">Distribuir</h3>
+        <div className="pde-align-grid pde-align-grid--2">
+          <button
+            type="button"
+            className="pde-btn"
+            disabled={count < 3}
+            onClick={() => distributeSelected('h')}
+          >
+            Horizontal
+          </button>
+          <button
+            type="button"
+            className="pde-btn"
+            disabled={count < 3}
+            onClick={() => distributeSelected('v')}
+          >
+            Vertical
+          </button>
+        </div>
+        {count < 3 && (
+          <p className="pde-props__empty">
+            Distribuir necesita al menos 3 elementos.
+          </p>
+        )}
+      </section>
+    </aside>
+  );
+}
+
 export function PropertiesPanel({ descriptor, onAssetUpload }: Props) {
+  const multi = useEditor(s => s.selectedIds.length > 1);
   const element = useEditor(s =>
-    s.template.elements.find(el => el.id === s.selectedId)
+    s.selectedIds.length === 1
+      ? s.template.elements.find(el => el.id === s.selectedIds[0])
+      : undefined
   );
   const updateElement = useEditor(s => s.updateElement);
   const removeElement = useEditor(s => s.removeElement);
@@ -280,11 +359,14 @@ export function PropertiesPanel({ descriptor, onAssetUpload }: Props) {
     if (panelFocusNonce > 0) bindingRef.current?.focus();
   }, [panelFocusNonce]);
 
+  if (multi) return <MultiSelectionPanel />;
+
   if (!element) {
     return (
       <aside className="pde-props">
         <p className="pde-props__empty">
-          Selecciona un elemento para editar sus propiedades.
+          Selecciona un elemento para editar sus propiedades. Con Shift o Alt
+          puedes seleccionar varios y alinearlos.
         </p>
         <MarginSettings />
         <BackgroundSettings onAssetUpload={onAssetUpload} />

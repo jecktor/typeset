@@ -37,6 +37,62 @@ export function rectToFrame(
   };
 }
 
+export type AlignMode = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
+
+/** Align rects against the selection's bounding box. Order is preserved. */
+export function alignRects(rects: Rect[], mode: AlignMode): Rect[] {
+  if (rects.length < 2) return rects;
+  const minX = Math.min(...rects.map(r => r.x));
+  const maxX = Math.max(...rects.map(r => r.x + r.width));
+  const minY = Math.min(...rects.map(r => r.y));
+  const maxY = Math.max(...rects.map(r => r.y + r.height));
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  return rects.map(r => {
+    switch (mode) {
+      case 'left':
+        return { ...r, x: minX };
+      case 'center':
+        return { ...r, x: cx - r.width / 2 };
+      case 'right':
+        return { ...r, x: maxX - r.width };
+      case 'top':
+        return { ...r, y: minY };
+      case 'middle':
+        return { ...r, y: cy - r.height / 2 };
+      case 'bottom':
+        return { ...r, y: maxY - r.height };
+    }
+  });
+}
+
+/**
+ * Even gaps along an axis: the outermost rects stay put and the ones in
+ * between shift so every gap is equal (gaps may be negative when the rects
+ * overflow the span). Order is preserved.
+ */
+export function distributeRects(rects: Rect[], axis: 'h' | 'v'): Rect[] {
+  if (rects.length < 3) return rects;
+  const pos = (r: Rect) => (axis === 'h' ? r.x : r.y);
+  const size = (r: Rect) => (axis === 'h' ? r.width : r.height);
+  const order = rects
+    .map((_, i) => i)
+    .sort((a, b) => pos(rects[a]!) - pos(rects[b]!));
+  const first = rects[order[0]!]!;
+  const last = rects[order[order.length - 1]!]!;
+  const span = pos(last) + size(last) - pos(first);
+  const total = order.reduce((sum, i) => sum + size(rects[i]!), 0);
+  const gap = (span - total) / (order.length - 1);
+  const out = rects.slice();
+  let cursor = pos(first);
+  for (const i of order) {
+    const r = rects[i]!;
+    out[i] = axis === 'h' ? { ...r, x: cursor } : { ...r, y: cursor };
+    cursor += size(r) + gap;
+  }
+  return out;
+}
+
 export function applyMove(
   original: Frame,
   dx: number,

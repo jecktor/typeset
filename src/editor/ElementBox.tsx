@@ -154,7 +154,8 @@ export function ElementBox({ element, descriptor, assets, onStartMove, onStartRe
   const zoom = useEditor(s => s.zoom);
   const pageHeight = useEditor(s => s.template.pageSize.height);
   const locale = useEditor(s => s.template.locale);
-  const selected = useEditor(s => s.selectedId === element.id);
+  const selected = useEditor(s => s.selectedIds.includes(element.id));
+  const solo = useEditor(s => s.selectedIds.length === 1);
   const editing = useEditor(s => s.editingId === element.id);
   const setEditing = useEditor(s => s.setEditing);
   const select = useEditor(s => s.select);
@@ -194,6 +195,12 @@ export function ElementBox({ element, descriptor, assets, onStartMove, onStartRe
           e.stopPropagation();
           return;
         }
+        // Shift/Alt toggles membership in the multi-selection (no drag).
+        if (e.shiftKey || e.altKey) {
+          e.stopPropagation();
+          select(element.id, true);
+          return;
+        }
         onStartMove(e, element.id);
       }}
       onClick={e => e.stopPropagation()}
@@ -230,6 +237,7 @@ export function ElementBox({ element, descriptor, assets, onStartMove, onStartRe
       )}
 
       {selected &&
+        solo &&
         !editing &&
         CORNERS.map(corner => (
           <div

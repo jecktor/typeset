@@ -127,8 +127,21 @@ export function Canvas({ assets, descriptor }: Props) {
     [interaction, pointCoords, updateInteraction]
   );
 
+  // The browser fires a click right after a drag's pointerup; its target can
+  // be the page (the element re-renders a frame behind the pointer), which
+  // would wrongly clear the selection. Swallow exactly that click.
+  const suppressClick = useRef(false);
+  const endDrag = useCallback(() => {
+    if (interaction) suppressClick.current = true;
+    endInteraction();
+  }, [interaction, endInteraction]);
+
   const onCanvasClick = useCallback(
     (e: MouseEvent) => {
+      if (suppressClick.current) {
+        suppressClick.current = false;
+        return;
+      }
       if (!placing) {
         deselect();
         return;
@@ -144,6 +157,10 @@ export function Canvas({ assets, descriptor }: Props) {
   // placed + selected an element) aren't undone.
   const onOutsideClick = useCallback(
     (e: MouseEvent) => {
+      if (suppressClick.current) {
+        suppressClick.current = false;
+        return;
+      }
       if (e.target === e.currentTarget) deselect();
     },
     [deselect]
@@ -196,14 +213,23 @@ export function Canvas({ assets, descriptor }: Props) {
     elements.length === 0 && (!template.flow || template.flow.stack.length === 0);
 
   return (
-    <div className="pde-canvas" ref={canvasRef} onClick={onOutsideClick}>
+    <div
+      className="pde-canvas"
+      ref={canvasRef}
+      onClick={onOutsideClick}
+      // A new gesture invalidates any leftover suppression from the last one
+      // (e.g. a tap whose click never reached the page).
+      onPointerDownCapture={() => {
+        suppressClick.current = false;
+      }}
+    >
       <div
         ref={pageRef}
         className={`pde-page ${placing ? 'pde-page--placing' : ''}`}
         style={{ width: pageW * zoom, height: pageH * zoom }}
         onPointerMove={onPointerMove}
-        onPointerUp={endInteraction}
-        onPointerLeave={endInteraction}
+        onPointerUp={endDrag}
+        onPointerLeave={endDrag}
         onClick={onCanvasClick}
         onDragOver={onDragOver}
         onDrop={onDrop}
