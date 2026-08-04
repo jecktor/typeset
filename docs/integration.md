@@ -22,6 +22,11 @@ Peer dependencies: `pdf-lib >= 1.17` and `zod >= 3` always; `react >= 19`,
 `react-dom >= 19`, `react-pdf >= 10`, `pdfjs-dist >= 5 < 6` only if you use
 the editor UI; `@pdf-lib/fontkit` only for custom font assets.
 
+`pdf-lib` is peer (never bundled, so your app owns the single copy) and is
+loaded with a dynamic `import()` on the first `renderPdf` call — it stays out
+of your boot bundle, and no static edge exists for a bundler to pull into an
+import cycle. Nothing in the package runs at module scope.
+
 ## Entry points
 
 | Import | What | Where |

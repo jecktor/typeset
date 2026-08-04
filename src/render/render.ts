@@ -1,10 +1,4 @@
-import {
-  PDFDocument,
-  rgb,
-  type PDFFont,
-  type PDFImage,
-  type PDFPage
-} from 'pdf-lib';
+import type { PDFDocument, PDFFont, PDFImage, PDFPage } from 'pdf-lib';
 import {
   getByPath,
   type FormatterRegistry,
@@ -68,12 +62,16 @@ async function defaultFetchImage(url: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
-function hexToRgb(hex: string) {
-  return rgb(
-    parseInt(hex.slice(1, 3), 16) / 255,
-    parseInt(hex.slice(3, 5), 16) / 255,
-    parseInt(hex.slice(5, 7), 16) / 255
-  );
+/** '#rrggbb' → pdf-lib color, bound to the lazily imported `rgb`. */
+type ColorFn = (hex: string) => ReturnType<typeof import('pdf-lib').rgb>;
+
+function makeColorFn(rgb: typeof import('pdf-lib').rgb): ColorFn {
+  return hex =>
+    rgb(
+      parseInt(hex.slice(1, 3), 16) / 255,
+      parseInt(hex.slice(3, 5), 16) / 255,
+      parseInt(hex.slice(5, 7), 16) / 255
+    );
 }
 
 function executeOp(
@@ -81,7 +79,8 @@ function executeOp(
   op: DrawOp,
   pageH: number,
   fonts: Map<string, PDFFont>,
-  images: Map<string, PDFImage>
+  images: Map<string, PDFImage>,
+  hexToRgb: ColorFn
 ) {
   switch (op.op) {
     case 'text':
@@ -132,7 +131,13 @@ export async function renderPdf(options: RenderOptions): Promise<Uint8Array> {
   const { template, data } = options;
   const resolver = toResolver(options.assets);
 
-  const doc = await PDFDocument.create();
+  // Loaded on first render, never at module scope: pdf-lib stays out of every
+  // consumer's boot bundle, and no static edge exists for a bundler to weave
+  // into an import cycle. Repeat calls hit the module cache.
+  const pdfLib = await import('pdf-lib');
+  const hexToRgb = makeColorFn(pdfLib.rgb);
+
+  const doc = await pdfLib.PDFDocument.create();
   if (options.fontkit) {
     (doc as unknown as { registerFontkit(fk: unknown): void }).registerFontkit(
       options.fontkit
@@ -171,7 +176,7 @@ export async function renderPdf(options: RenderOptions): Promise<Uint8Array> {
     if (ref && !bgDocs.has(ref.assetId)) {
       bgDocs.set(
         ref.assetId,
-        await PDFDocument.load(await resolver.resolve(ref.assetId))
+        await pdfLib.PDFDocument.load(await resolver.resolve(ref.assetId))
       );
     }
   }
@@ -219,7 +224,7 @@ export async function renderPdf(options: RenderOptions): Promise<Uint8Array> {
     }
     const pageH = page.getSize().height;
     for (const op of planned.ops) {
-      executeOp(page, op, pageH, fonts, images);
+      executeOp(page, op, pageH, fonts, images, hexToRgb);
     }
   }
 

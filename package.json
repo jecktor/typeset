@@ -67,6 +67,9 @@
   "files": [
     "dist"
   ],
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "build": "tsup && mkdir -p dist/editor && cp src/editor/styles.css dist/editor/styles.css",
     "dev": "tsup --watch",

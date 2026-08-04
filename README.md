@@ -65,6 +65,9 @@ Peer dependencies: `pdf-lib` and `zod` always; `react`, `react-dom`,
 `react-pdf` and `pdfjs-dist` only if you use the editor UI;
 `@pdf-lib/fontkit` only for custom font assets.
 
+`pdf-lib` is loaded lazily on the first `renderPdf` call, so it never lands in
+your app's boot bundle.
+
 ## Quick start: generate a PDF
 
 ```ts
