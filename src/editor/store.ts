@@ -1,13 +1,15 @@
 import { createContext, useContext } from 'react';
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type {
-  FlowItem,
-  FlowRegion,
-  FlowSpec,
-  Template,
-  TemplateElement,
-  ValueFormat
+import {
+  applyStarterLayout,
+  type FlowItem,
+  type FlowRegion,
+  type FlowSpec,
+  type ModelDescriptor,
+  type Template,
+  type TemplateElement,
+  type ValueFormat
 } from '../core';
 import {
   alignRects,
@@ -118,6 +120,8 @@ export interface EditorState {
   setPlacing(placing: PlacingSpec | null): void;
   setEditing(id: string | null): void;
   setShowMargins(show: boolean): void;
+  /** Fills a blank page with the model's starter layout (undoable). */
+  applyStarter(descriptor?: ModelDescriptor): void;
   requestPanelFocus(): void;
 
   undo(): void;
@@ -269,6 +273,12 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
         }),
       setEditing: id => set({ editingId: id }),
       setShowMargins: show => set({ showMargins: show }),
+      applyStarter: descriptor =>
+        commit(
+          'starter',
+          applyStarterLayout(get().template, descriptor),
+          { selectedIds: [], selectedFlowId: null, scopeTab: 'first' }
+        ),
       requestPanelFocus: () =>
         set(state => ({ panelFocusNonce: state.panelFocusNonce + 1 })),
       selectFlowItem: id =>

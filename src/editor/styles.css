@@ -548,6 +548,12 @@
   color: var(--_pde-text);
   font-size: 14px;
 }
+/* The hint itself ignores the pointer so it never blocks a drop; the action
+   inside it must opt back in. */
+.pde-empty-hint .pde-btn {
+  margin-top: 6px;
+  pointer-events: auto;
+}
 .pde-ghost__empty {
   margin: 8px;
   padding: 12px 14px;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyStarterLayout,
   createStarterTemplate,
+  createTemplate,
   parseTemplate,
   starterTemplateName,
   validateTemplate,
@@ -48,6 +50,51 @@ describe('starterTemplateName', () => {
     expect(starterTemplateName({ ...cotizacion, label: '   ' })).toBe(
       'Plantilla base'
     );
+  });
+});
+
+// The editor's blank-page action runs this against a template that already
+// exists, so it must fill the layout without touching the record's identity.
+describe('applyStarterLayout', () => {
+  it('keeps id, name and model while replacing the layout', () => {
+    const existing = createTemplate({
+      id: 'tpl-existing',
+      name: 'Mi cotización de siempre',
+      docType: 'oficio',
+      model: 'cotizacion'
+    });
+    const filled = applyStarterLayout(existing, cotizacion);
+
+    expect(filled.id).toBe('tpl-existing');
+    expect(filled.name).toBe('Mi cotización de siempre');
+    expect(filled.model).toBe('cotizacion');
+    expect(filled.docType).toBe('oficio');
+    expect(filled.pageSize).toEqual(existing.pageSize);
+    expect(filled.elements.length).toBeGreaterThan(0);
+    expect(filled.flow?.stack.length).toBeGreaterThan(0);
+    expect(validateTemplate(filled, cotizacion)).toEqual([]);
+  });
+
+  it('does not mutate the template it is given', () => {
+    const existing = createTemplate({
+      id: 'tpl-frozen',
+      name: 'Vacía',
+      docType: 'carta'
+    });
+    applyStarterLayout(existing, cotizacion);
+    expect(existing.elements).toEqual([]);
+    expect(existing.flow).toBeUndefined();
+    expect(existing.margins).toBeUndefined();
+  });
+
+  it('replaces a previous layout instead of appending to it', () => {
+    const once = applyStarterLayout(
+      createTemplate({ id: 'tpl-twice', name: 'X', docType: 'carta' }),
+      cotizacion
+    );
+    const twice = applyStarterLayout(once, cotizacion);
+    expect(twice.elements).toHaveLength(once.elements.length);
+    expect(twice.flow?.stack).toHaveLength(once.flow!.stack.length);
   });
 });
 

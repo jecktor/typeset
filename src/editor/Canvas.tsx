@@ -37,6 +37,7 @@ export function Canvas({ assets, descriptor }: Props) {
   const updateInteraction = useEditor(s => s.updateInteraction);
   const endInteraction = useEditor(s => s.endInteraction);
   const setPlacing = useEditor(s => s.setPlacing);
+  const applyStarter = useEditor(s => s.applyStarter);
 
   const pageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -303,6 +304,21 @@ export function Canvas({ assets, descriptor }: Props) {
               Arrastra un campo o un elemento desde el panel izquierdo hasta
               aquí para empezar.
             </span>
+            <button
+              type="button"
+              className="pde-btn pde-btn--primary"
+              title={
+                descriptor
+                  ? `Coloca todos los campos de ${descriptor.label} y una tabla por cada lista.`
+                  : 'Coloca un título y un área de contenido para empezar.'
+              }
+              onClick={e => {
+                e.stopPropagation();
+                applyStarter(descriptor);
+              }}
+            >
+              Empezar con una plantilla base
+            </button>
           </div>
         )}
 

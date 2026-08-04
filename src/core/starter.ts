@@ -102,7 +102,7 @@ function isLongText(
 
 export interface StarterTemplateInit {
   id: string;
-  /** Defaults to `template_<model>`, or `template` with no descriptor. */
+  /** Defaults to the model's label, or 'Plantilla base'. */
   name?: string;
   docType: Template['docType'];
   /** Required when docType is 'custom'. */
@@ -137,7 +137,19 @@ export function createStarterTemplate(init: StarterTemplateInit): Template {
     locale: init.locale,
     model: descriptor?.name
   });
+  return applyStarterLayout(base, descriptor);
+}
 
+/**
+ * Fill an EXISTING template with the starter layout, replacing whatever
+ * elements and flow it had. Identity (id, name, model, page size, background)
+ * is untouched — this is what the editor's blank-page action runs.
+ */
+export function applyStarterLayout(
+  template: Template,
+  descriptor?: ModelDescriptor
+): Template {
+  const base = template;
   const { width: pageW, height: pageH } = base.pageSize;
   const contentW = pageW - MARGIN * 2;
   const elements: TemplateElement[] = [];

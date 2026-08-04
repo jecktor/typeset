@@ -4,6 +4,7 @@ export * from './model';
 export * from './ids';
 export {
   createStarterTemplate,
+  applyStarterLayout,
   starterTemplateName,
   defaultTableFor,
   bodyStyle,
