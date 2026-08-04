@@ -13,6 +13,25 @@ describe('parseTemplate', () => {
     expect(parsed).toEqual(template);
   });
 
+  it('round-trips margins and keeps them optional', () => {
+    const template = {
+      ...baseTemplate(),
+      margins: { top: 71, right: 71, bottom: 85, left: 71 }
+    };
+    const parsed = parseTemplate(JSON.parse(JSON.stringify(template)));
+    expect(parsed.margins).toEqual(template.margins);
+    // Pre-margins documents must keep parsing untouched.
+    expect(parseTemplate(JSON.parse(JSON.stringify(baseTemplate()))).margins).toBeUndefined();
+  });
+
+  it('rejects negative margins', () => {
+    const doc = {
+      ...baseTemplate(),
+      margins: { top: -1, right: 0, bottom: 0, left: 0 }
+    };
+    expect(() => parseTemplate(doc)).toThrow();
+  });
+
   it('rejects a template without schemaVersion', () => {
     const { schemaVersion: _, ...rest } = baseTemplate() as unknown as Record<string, unknown>;
     expect(() => parseTemplate(rest)).toThrow(/schemaVersion/);

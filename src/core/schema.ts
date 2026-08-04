@@ -188,6 +188,14 @@ export const templateSchema = z.object({
     width: z.number().positive(),
     height: z.number().positive()
   }),
+  margins: z
+    .object({
+      top: z.number().nonnegative(),
+      right: z.number().nonnegative(),
+      bottom: z.number().nonnegative(),
+      left: z.number().nonnegative()
+    })
+    .optional(),
   locale: z.string().min(2),
   model: z.string().optional(),
   fonts: z.array(fontSpecSchema),

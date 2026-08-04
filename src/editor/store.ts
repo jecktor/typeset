@@ -70,6 +70,8 @@ export interface EditorState {
   guides: { x: number[]; y: number[] } | null;
   /** Element currently being edited in place on the canvas. */
   editingId: string | null;
+  /** Whether the dashed margin lines are drawn on the canvas. */
+  showMargins: boolean;
   /** Bumped when a double-click asks the sidebar to spotlight its data control. */
   panelFocusNonce: number;
   /** True once the user has opened preview at least once (drives the nudge). */
@@ -82,6 +84,8 @@ export interface EditorState {
   removeElement(id: string): void;
   select(id: string | null): void;
   selectFlowItem(id: string | null): void;
+  /** Clears both element and flow-item selection. */
+  deselect(): void;
   setZoom(zoom: number): void;
   /** Applied by the canvas while in fit mode; keeps zoomMode untouched. */
   setFitZoom(zoom: number): void;
@@ -90,6 +94,7 @@ export interface EditorState {
   setMode(mode: EditorMode): void;
   setPlacing(placing: PlacingSpec | null): void;
   setEditing(id: string | null): void;
+  setShowMargins(show: boolean): void;
   requestPanelFocus(): void;
 
   undo(): void;
@@ -175,6 +180,7 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
       interaction: null,
       guides: null,
       editingId: null,
+      showMargins: true,
       panelFocusNonce: 0,
       previewSeen: false,
 
@@ -213,10 +219,12 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
       select: id =>
         set(id ? { selectedId: id, selectedFlowId: null } : { selectedId: null }),
       setEditing: id => set({ editingId: id }),
+      setShowMargins: show => set({ showMargins: show }),
       requestPanelFocus: () =>
         set(state => ({ panelFocusNonce: state.panelFocusNonce + 1 })),
       selectFlowItem: id =>
         set(id ? { selectedFlowId: id, selectedId: null } : { selectedFlowId: null }),
+      deselect: () => set({ selectedId: null, selectedFlowId: null }),
       setZoom: zoom =>
         set({ zoom: Math.min(3, Math.max(0.25, zoom)), zoomMode: 'manual' }),
       setFitZoom: zoom => {
@@ -402,6 +410,15 @@ export function createEditorStore(initial: Template): StoreApi<EditorState> {
               y: region.yTop,
               width: region.width,
               height: region.yBottom - region.yTop
+            });
+          }
+          const margins = template.margins;
+          if (margins) {
+            targets.push({
+              x: margins.left,
+              y: margins.top,
+              width: pageW - margins.left - margins.right,
+              height: pageH - margins.top - margins.bottom
             });
           }
           const rect = frameToRect(moved, pageH);

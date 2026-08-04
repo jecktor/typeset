@@ -31,7 +31,7 @@ export function Canvas({ assets, descriptor }: Props) {
   const interaction = useEditor(s => s.interaction);
   const guides = useEditor(s => s.guides);
   const addElement = useEditor(s => s.addElement);
-  const select = useEditor(s => s.select);
+  const deselect = useEditor(s => s.deselect);
   const startInteraction = useEditor(s => s.startInteraction);
   const startRegionInteraction = useEditor(s => s.startRegionInteraction);
   const updateInteraction = useEditor(s => s.updateInteraction);
@@ -130,13 +130,23 @@ export function Canvas({ assets, descriptor }: Props) {
   const onCanvasClick = useCallback(
     (e: MouseEvent) => {
       if (!placing) {
-        select(null);
+        deselect();
         return;
       }
       const coords = pointCoords(e);
       if (coords) placeAt(placing, coords.x, coords.y);
     },
-    [placing, pointCoords, placeAt, select]
+    [placing, pointCoords, placeAt, deselect]
+  );
+
+  // Clicking the gray area around the page also clears the selection. Guarded
+  // by target === currentTarget so bubbled page clicks (which may have just
+  // placed + selected an element) aren't undone.
+  const onOutsideClick = useCallback(
+    (e: MouseEvent) => {
+      if (e.target === e.currentTarget) deselect();
+    },
+    [deselect]
   );
 
   const onDragOver = useCallback((e: DragEvent) => {
@@ -173,6 +183,9 @@ export function Canvas({ assets, descriptor }: Props) {
     [tab, pointCoords, startRegionInteraction]
   );
 
+  const showMargins = useEditor(s => s.showMargins);
+  const margins = template.margins;
+
   const visibleScopes = scopesForTab(tab);
   const elements = template.elements.filter(el => visibleScopes.includes(el.scope));
   const flowRegion =
@@ -183,7 +196,7 @@ export function Canvas({ assets, descriptor }: Props) {
     elements.length === 0 && (!template.flow || template.flow.stack.length === 0);
 
   return (
-    <div className="pde-canvas" ref={canvasRef}>
+    <div className="pde-canvas" ref={canvasRef} onClick={onOutsideClick}>
       <div
         ref={pageRef}
         className={`pde-page ${placing ? 'pde-page--placing' : ''}`}
@@ -206,6 +219,18 @@ export function Canvas({ assets, descriptor }: Props) {
               />
             </Document>
           </div>
+        )}
+
+        {margins && showMargins && (
+          <div
+            className="pde-margins"
+            style={{
+              left: margins.left * zoom,
+              top: margins.top * zoom,
+              width: Math.max(0, pageW - margins.left - margins.right) * zoom,
+              height: Math.max(0, pageH - margins.top - margins.bottom) * zoom
+            }}
+          />
         )}
 
         {flowRegion && (

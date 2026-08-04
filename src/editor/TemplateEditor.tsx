@@ -81,6 +81,7 @@ function EditorShell({
   const selectedId = useEditor(s => s.selectedId);
   const selectedFlowId = useEditor(s => s.selectedFlowId);
   const removeElement = useEditor(s => s.removeElement);
+  const deselect = useEditor(s => s.deselect);
   const placing = useEditor(s => s.placing);
   const setPlacing = useEditor(s => s.setPlacing);
   const canUndo = useEditor(s => s.history.length > 0);
@@ -134,7 +135,10 @@ function EditorShell({
       target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
       target.tagName === 'SELECT';
-    if (e.key === 'Escape' && placing) setPlacing(null);
+    if (e.key === 'Escape') {
+      if (placing) setPlacing(null);
+      else if (!inField && (selectedId || selectedFlowId)) deselect();
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !inField) {
       e.preventDefault();
       removeElement(selectedId);

@@ -16,6 +16,14 @@ export interface PageSize {
   height: number;
 }
 
+/** Editor-only visual aid; the renderer never reads it. All sides in points. */
+export interface Margins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 /** Which physical pages an element appears on. */
 export type PageScope = 'first' | 'middle' | 'last' | 'all';
 
@@ -239,6 +247,8 @@ export interface Template {
   name: string;
   docType: DocType;
   pageSize: PageSize;
+  /** Reference margins shown as dashed lines in the editor. */
+  margins?: Margins;
   /** BCP-47 locale driving Intl formatting. */
   locale: string;
   /** ModelDescriptor.name this template binds to, if any. */

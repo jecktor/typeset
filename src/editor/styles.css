@@ -311,6 +311,14 @@
   pointer-events: none;
   user-select: none;
 }
+.pde-margins {
+  position: absolute;
+  border: 1px dashed color-mix(in srgb, currentColor 35%, transparent);
+  color: #6b7280;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .pde-flow-region {
   position: absolute;
   border: 1.5px dashed color-mix(in srgb, var(--_pde-accent) 60%, transparent);
@@ -970,10 +978,62 @@
   color: var(--_pde-muted);
   line-height: 1.5;
 }
+/* Document-level sections (margins, background, content area) read as
+   separate cards: hairline on top, consistent inner rhythm. */
+.pde-props > section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--_pde-border);
+}
+.pde-props > section .pde-panel__title,
+.pde-props__header .pde-panel__title {
+  margin: 0;
+}
 .pde-props__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+}
+/* Section actions stay quiet until hovered — the title owns the row. */
+.pde-props__header .pde-btn {
+  padding: 3px 9px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.pde-props__header .pde-btn--danger {
+  border-color: transparent;
+  background: transparent;
+}
+.pde-props__header .pde-btn--danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--_pde-danger) 45%, var(--_pde-border));
+  background: color-mix(in srgb, var(--_pde-danger) 6%, var(--_pde-panel));
+}
+/* Input with a unit suffix ("cm"); native spinners hidden so the unit
+   doesn't collide with them (arrow keys still step). */
+.pde-field__unit {
+  position: relative;
+}
+.pde-field__unit input {
+  padding-right: 32px;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.pde-field__unit input::-webkit-inner-spin-button,
+.pde-field__unit input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.pde-field__unit > span {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--_pde-muted);
+  pointer-events: none;
 }
 .pde-props__grid {
   display: grid;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type {
+  Margins,
   ModelDescriptor,
   PageScope,
   TemplateElement,
@@ -58,7 +59,14 @@ function BackgroundSettings({
 
   return (
     <section className="pde-bg-settings">
-      <h3 className="pde-panel__title">Fondo de página ({tabLabel})</h3>
+      <div className="pde-props__header">
+        <h3 className="pde-panel__title">Fondo de página ({tabLabel})</h3>
+        {own && (
+          <button type="button" className="pde-btn pde-btn--danger" onClick={remove}>
+            Quitar
+          </button>
+        )}
+      </div>
       <p className="pde-props__empty">
         {own
           ? 'Esta página usa su propio PDF de fondo.'
@@ -77,11 +85,102 @@ function BackgroundSettings({
           />
         </label>
       )}
-      {own && (
-        <button type="button" className="pde-btn pde-btn--danger" onClick={remove}>
-          Quitar fondo de esta página
+    </section>
+  );
+}
+
+const PT_PER_CM = 72 / 2.54;
+
+/** Edits a point-value margin displayed in centimeters. */
+function CmField({
+  label,
+  value,
+  onChange
+}: {
+  label: string;
+  value: number;
+  onChange(next: number): void;
+}) {
+  return (
+    <label className="pde-field">
+      <span>{label}</span>
+      <div className="pde-field__unit">
+        <input
+          type="number"
+          value={Number((value / PT_PER_CM).toFixed(2))}
+          step={0.1}
+          min={0}
+          onChange={e => {
+            const n = Number(e.target.value);
+            if (!isNaN(n) && n >= 0) onChange(n * PT_PER_CM);
+          }}
+        />
+        <span>cm</span>
+      </div>
+    </label>
+  );
+}
+
+/** Reference margins: dashed lines on the canvas, never printed. */
+function MarginSettings() {
+  const margins = useEditor(s => s.template.margins);
+  const patchTemplate = useEditor(s => s.patchTemplate);
+  const showMargins = useEditor(s => s.showMargins);
+  const setShowMargins = useEditor(s => s.setShowMargins);
+
+  const patch = (p: Partial<Margins>) => {
+    if (margins) patchTemplate({ margins: { ...margins, ...p } });
+  };
+
+  if (!margins) {
+    return (
+      <section className="pde-margin-settings">
+        <h3 className="pde-panel__title">Márgenes del documento</h3>
+        <p className="pde-props__empty">
+          Líneas punteadas de referencia para posicionar elementos; no se
+          imprimen.
+        </p>
+        <button
+          type="button"
+          className="pde-btn"
+          onClick={() => {
+            const m = 2.5 * PT_PER_CM;
+            patchTemplate({ margins: { top: m, right: m, bottom: m, left: m } });
+            setShowMargins(true);
+          }}
+        >
+          Definir márgenes
         </button>
-      )}
+      </section>
+    );
+  }
+
+  return (
+    <section className="pde-margin-settings">
+      <div className="pde-props__header">
+        <h3 className="pde-panel__title">Márgenes del documento</h3>
+        <button
+          type="button"
+          className="pde-btn pde-btn--danger"
+          onClick={() => patchTemplate({ margins: undefined })}
+        >
+          Quitar
+        </button>
+      </div>
+      <label className="pde-field pde-field--row">
+        <input
+          type="checkbox"
+          checked={showMargins}
+          onChange={e => setShowMargins(e.target.checked)}
+        />
+        <span>Mostrar en el lienzo</span>
+      </label>
+      <div className="pde-props__grid">
+        <CmField label="Superior" value={margins.top} onChange={top => patch({ top })} />
+        <CmField label="Inferior" value={margins.bottom} onChange={bottom => patch({ bottom })} />
+        <CmField label="Izquierdo" value={margins.left} onChange={left => patch({ left })} />
+        <CmField label="Derecho" value={margins.right} onChange={right => patch({ right })} />
+      </div>
     </section>
   );
 }
@@ -97,7 +196,7 @@ function RegionSettings() {
   const region = flow.regions[tab];
 
   return (
-    <>
+    <section className="pde-region-settings">
       <div className="pde-props__header">
         <h3 className="pde-panel__title">
           Área de contenido ({tab === 'first' ? 'primera' : 'intermedias'})
@@ -124,7 +223,7 @@ function RegionSettings() {
           onChange={yBottom => updateRegion(tab, { yBottom })}
         />
       </div>
-    </>
+    </section>
   );
 }
 
@@ -187,6 +286,7 @@ export function PropertiesPanel({ descriptor, onAssetUpload }: Props) {
         <p className="pde-props__empty">
           Selecciona un elemento para editar sus propiedades.
         </p>
+        <MarginSettings />
         <BackgroundSettings onAssetUpload={onAssetUpload} />
         <RegionSettings />
       </aside>
