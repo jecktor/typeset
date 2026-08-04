@@ -13,7 +13,11 @@ export const DEFAULT_STRINGS = {
   delete: 'Eliminar',
   confirmDelete: '¿Eliminar esta plantilla?',
   confirmDiscard: 'Tienes cambios sin guardar. ¿Salir sin guardarlos?',
-  empty: 'Aún no hay plantillas. Crea la primera.',
+  empty:
+    'Aún no hay plantillas. Empieza con una plantilla base o crea la tuya.',
+  starter: 'Plantilla base:',
+  starterHint:
+    'Crea una plantilla base con todos los campos del modelo ya colocados, lista para editar.',
   loading: 'Cargando…',
   // wizard
   wizardTitle: 'Nueva plantilla',

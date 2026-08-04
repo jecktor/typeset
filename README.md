@@ -27,6 +27,10 @@ finished PDF, on the server or in the browser.
 - **Templates module**: a drop-in section with the templates list, a creation
   wizard and the editor, wired to your persistence through a small storage
   adapter interface.
+- **Starter templates**: one click builds a working layout from a model —
+  every field placed, tables for every list, margins set — so a fresh install
+  is never a blank page. `createStarterTemplate` is pure data, so a backend
+  can seed it too.
 - **Headless renderer**: `renderPdf(template, data)` runs in Node route
   handlers and in the browser, performs zero I/O of its own, and is the same
   engine the editor previews with.

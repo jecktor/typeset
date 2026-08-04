@@ -675,12 +675,4 @@ export function useEditor<T>(selector: (state: EditorState) => T): T {
   return useStore(store, selector);
 }
 
-export function newElementId(): string {
-  const uuid = globalThis.crypto?.randomUUID?.();
-  return `el-${uuid ?? Math.random().toString(36).slice(2, 10)}`;
-}
-
-export function newFlowId(): string {
-  const uuid = globalThis.crypto?.randomUUID?.();
-  return `fl-${uuid ?? Math.random().toString(36).slice(2, 10)}`;
-}
+export { newElementId, newFlowId } from '../core';

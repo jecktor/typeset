@@ -784,6 +784,18 @@
   justify-content: space-between;
   padding: 20px 24px 14px;
 }
+.pde-module__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.pde-module__header-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--_pde-muted);
+}
 .pde-module__header h2 {
   margin: 0;
   font-size: 19px;

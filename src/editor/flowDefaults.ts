@@ -1,69 +1,15 @@
-import type {
-  ListFieldDescriptor,
-  ScalarType,
-  TableColumn,
-  TableFlowItem,
-  Template,
-  TemplateElement,
-  TextStyle
+import {
+  bodyStyle,
+  newElementId,
+  newFlowId,
+  type Template,
+  type TemplateElement
 } from '../core';
-import { newElementId, newFlowId, type PlacingSpec, type ScopeTab } from './store';
+import type { PlacingSpec, ScopeTab } from './store';
 
-const TEXT = '#212121';
-
-function bodyStyle(template: Template, size = 10): TextStyle {
-  return { font: template.fonts[0]?.family ?? 'body', size, color: TEXT };
-}
-
-function boldStyle(template: Template, size = 10): TextStyle {
-  const bold = template.fonts.find(f => f.family.includes('bold'));
-  return { font: bold?.family ?? template.fonts[0]?.family ?? 'body', size, color: TEXT };
-}
-
-function defaultColumnWidth(type: ScalarType): number | 'flex' {
-  switch (type) {
-    case 'number':
-      return 60;
-    case 'currency':
-      return 90;
-    case 'date':
-      return 110;
-    default:
-      return 'flex';
-  }
-}
-
-/** Sensible starter table for a list field: one column per item field. */
-export function defaultTableFor(
-  listField: ListFieldDescriptor,
-  template: Template
-): TableFlowItem {
-  const columns: TableColumn[] = listField.itemFields.map(f => ({
-    itemKey: f.key,
-    label: f.label,
-    width: defaultColumnWidth(f.type),
-    align: f.type === 'number' || f.type === 'currency' ? 'right' : 'left',
-    format: { type: f.type, pattern: f.format }
-  }));
-  return {
-    id: newFlowId(),
-    kind: 'table',
-    binding: listField.key,
-    columns,
-    header: {
-      height: 22,
-      repeatOnContinuation: true,
-      style: boldStyle(template),
-      background: '#f2f2f2'
-    },
-    row: {
-      minHeight: 22,
-      padding: 6,
-      style: bodyStyle(template),
-      divider: { color: '#d9d9d9', thickness: 0.5 }
-    }
-  };
-}
+// The table/style builders live in core so the starter-template generator (and
+// backend seeding scripts) can reuse them without pulling in the editor.
+export { defaultTableFor } from '../core';
 
 export function defaultTextBlock(template: Template) {
   return {

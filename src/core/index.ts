@@ -1,6 +1,15 @@
 export * from './types';
 export * from './pages';
 export * from './model';
+export * from './ids';
+export {
+  createStarterTemplate,
+  starterTemplateName,
+  defaultTableFor,
+  bodyStyle,
+  boldStyle,
+  type StarterTemplateInit
+} from './starter';
 export * from './format';
 export * from './measure';
 export {

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  createStarterTemplate,
   createTemplate,
+  starterTemplateName,
   validateTemplate,
   type DocType,
   type FormatterRegistry,
@@ -249,6 +251,21 @@ export function TemplatesModule(props: TemplatesModuleProps) {
     }
   };
 
+  /** One click from an empty list to a template with every model field on it. */
+  const createStarter = (descriptor?: ModelDescriptor) => {
+    setError(null);
+    setView({
+      name: 'editor',
+      template: createStarterTemplate({
+        id: newTemplateId(),
+        docType: 'carta',
+        descriptor
+      }),
+      dirty: true,
+      justSaved: false
+    });
+  };
+
   const save = async () => {
     if (view.name !== 'editor') return;
     const descriptor = models?.find(m => m.name === view.template.model);
@@ -325,13 +342,40 @@ export function TemplatesModule(props: TemplatesModuleProps) {
     <div className={`pde-module ${className ?? ''}`} style={themeStyle(props.theme)}>
       <div className="pde-module__header">
         <h2>{s.templates}</h2>
-        <button
-          type="button"
-          className="pde-btn pde-btn--primary"
-          onClick={() => setView({ name: 'wizard' })}
-        >
-          {s.newTemplate}
-        </button>
+        <div className="pde-module__header-actions">
+          {models?.length ? (
+            <>
+              <span className="pde-module__header-label">{s.starter}</span>
+              {models.map(m => (
+                <button
+                  key={m.name}
+                  type="button"
+                  className="pde-btn"
+                  title={s.starterHint}
+                  onClick={() => createStarter(m)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </>
+          ) : (
+            <button
+              type="button"
+              className="pde-btn"
+              title={s.starterHint}
+              onClick={() => createStarter(undefined)}
+            >
+              {starterTemplateName(undefined)}
+            </button>
+          )}
+          <button
+            type="button"
+            className="pde-btn pde-btn--primary"
+            onClick={() => setView({ name: 'wizard' })}
+          >
+            {s.newTemplate}
+          </button>
+        </div>
       </div>
 
       {error && <div className="pde-module__error">{error}</div>}

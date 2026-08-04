@@ -192,6 +192,28 @@ global stylesheet):
 Available keys/variables: `accent`, `accentSoft`, `surface`, `panel`,
 `border`, `text`, `muted`, `danger` (`--pde-accent`, `--pde-accent-soft`, …).
 
+## Starter templates
+
+The module's list header offers one **Plantilla base** button per entry in
+`models`. It generates a ready-to-edit template — every scalar as a labelled
+field, a table per list field, margins set — and opens it in the editor
+unsaved, exactly like the wizard does.
+
+`createStarterTemplate({ id, docType, descriptor })` from
+`@pibytelabs/typeset/core` does the same thing without React, so a migration
+script or API route can seed one:
+
+```ts
+import { createStarterTemplate } from '@pibytelabs/typeset/core';
+
+await db.templates.insert(
+  createStarterTemplate({ id: newId(), docType: 'carta', descriptor: quoteModel })
+);
+```
+
+The generated name is the model's `label` ('Cotización'), meant to be read and
+renamed by users. Look a starter up by `template.model`, never by its name.
+
 ## Template JSON lifecycle
 
 - Templates carry `schemaVersion`; always load through `parseTemplate` (it
