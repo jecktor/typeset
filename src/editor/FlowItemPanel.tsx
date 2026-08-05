@@ -88,7 +88,10 @@ function TableEditor({
   const asImageColumn = (col: TableColumn): Partial<TableColumn> => ({
     kind: 'image',
     format: undefined,
-    align: col.align ?? 'center',
+    // A text column's alignment was chosen for text ('left' for prose, 'right'
+    // for money) and means nothing to a thumbnail, so a fresh conversion
+    // centres. An existing image column keeps whatever it was given.
+    align: isImageColumn(col) ? col.align : 'center',
     width: col.width === 'flex' ? DEFAULT_IMAGE_COLUMN_WIDTH : col.width,
     imageHeight: col.imageHeight ?? DEFAULT_IMAGE_HEIGHT
   });
