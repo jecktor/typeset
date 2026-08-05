@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   createStarterTemplate,
-  createTemplate,
   starterTemplateName,
   validateTemplate,
   type DocType,
@@ -75,12 +74,15 @@ function Wizard({
       nameRef.current?.focus();
       return;
     }
-    const template = createTemplate({
+    // The wizard hands over a laid-out template, not a blank page: every
+    // field of the chosen model is already placed, ready to be rearranged.
+    // (createStarterTemplate records the model itself, from the descriptor.)
+    const template = createStarterTemplate({
       id: newTemplateId(),
       name: name.trim(),
       docType,
       pageSize: docType === 'custom' ? { width: customW, height: customH } : undefined,
-      model: model || undefined
+      descriptor: models?.find(m => m.name === model)
     });
     if (backgroundId) {
       template.background = { first: { assetId: backgroundId, pageIndex: 0 } };
