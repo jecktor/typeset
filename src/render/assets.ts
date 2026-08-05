@@ -1,6 +1,10 @@
+import { PLACEHOLDER_IMAGE_ASSET } from '../core';
+import { placeholderImageBytes } from './placeholder';
+
 /**
  * The package never stores files. Templates reference opaque assetIds
  * (backgrounds, logos, custom fonts); the host resolves them to bytes.
+ * The single exception is PLACEHOLDER_IMAGE_ASSET, served from inside.
  */
 export interface AssetResolver {
   resolve(assetId: string): Promise<Uint8Array>;
@@ -9,6 +13,18 @@ export interface AssetResolver {
 export type AssetsInput = AssetResolver | Record<string, Uint8Array>;
 
 export function toResolver(assets?: AssetsInput): AssetResolver {
+  const host = toHostResolver(assets);
+  return {
+    async resolve(id) {
+      // The bundled placeholder is the package's own asset: a host that never
+      // uploaded one still gets a picture in empty product cells.
+      if (id === PLACEHOLDER_IMAGE_ASSET) return placeholderImageBytes();
+      return host.resolve(id);
+    }
+  };
+}
+
+function toHostResolver(assets?: AssetsInput): AssetResolver {
   if (!assets) {
     return {
       async resolve(id) {

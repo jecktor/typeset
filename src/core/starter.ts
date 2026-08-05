@@ -11,6 +11,11 @@ import {
   type ScalarFieldDescriptor
 } from './model';
 import { createTemplate } from './schema';
+import {
+  DEFAULT_IMAGE_COLUMN_WIDTH,
+  DEFAULT_IMAGE_HEIGHT,
+  isImageColumn
+} from './tables';
 import type {
   FlowItem,
   ScalarType,
@@ -45,18 +50,53 @@ function defaultColumnWidth(type: ScalarType): number | 'flex' {
   }
 }
 
+/**
+ * Reading order of a quote's line items: the photo leads, then how many, then
+ * what it is, and money closes the row. Item fields are laid out by type
+ * following this list — foto, cantidad, descripción, total — and fields
+ * sharing a type keep the order the model declared them in (stable sort).
+ */
+const COLUMN_ORDER: ScalarType[] = [
+  'image-url',
+  'number',
+  'boolean',
+  'string',
+  'date',
+  'currency'
+];
+
+const columnRank = (type: ScalarType): number => {
+  const rank = COLUMN_ORDER.indexOf(type);
+  return rank === -1 ? COLUMN_ORDER.length : rank;
+};
+
 /** Sensible starter table for a list field: one column per item field. */
 export function defaultTableFor(
   listField: ListFieldDescriptor,
   template: Template
 ): TableFlowItem {
-  const columns: TableColumn[] = listField.itemFields.map(f => ({
-    itemKey: f.key,
-    label: f.label,
-    width: defaultColumnWidth(f.type),
-    align: f.type === 'number' || f.type === 'currency' ? 'right' : 'left',
-    format: { type: f.type, pattern: f.format }
-  }));
+  const ordered = [...listField.itemFields].sort(
+    (a, b) => columnRank(a.type) - columnRank(b.type)
+  );
+  const columns: TableColumn[] = ordered.map(f =>
+    // A picture field becomes a picture column — product photos out of the box.
+    f.type === 'image-url'
+      ? {
+          itemKey: f.key,
+          label: f.label,
+          width: DEFAULT_IMAGE_COLUMN_WIDTH,
+          align: 'center',
+          kind: 'image',
+          imageHeight: DEFAULT_IMAGE_HEIGHT
+        }
+      : {
+          itemKey: f.key,
+          label: f.label,
+          width: defaultColumnWidth(f.type),
+          align: f.type === 'number' || f.type === 'currency' ? 'right' : 'left',
+          format: { type: f.type, pattern: f.format }
+        }
+  );
   return {
     id: newFlowId(),
     kind: 'table',
@@ -73,7 +113,9 @@ export function defaultTableFor(
       padding: 6,
       style: bodyStyle(template),
       divider: { color: '#d9d9d9', thickness: 0.5 }
-    }
+    },
+    // Photos ship on; whoever issues the document can still leave them out.
+    ...(columns.some(isImageColumn) ? { images: { enabled: true } } : {})
   };
 }
 

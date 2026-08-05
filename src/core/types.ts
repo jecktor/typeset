@@ -155,6 +155,16 @@ export interface TableColumn {
   format?: ValueFormat;
   /** Overrides the table's row style for this column. */
   style?: TextStyle;
+  /**
+   * 'image' draws the bound value (an image URL or asset id) as a picture —
+   * product photos in the line items. Default 'text'.
+   */
+  kind?: 'text' | 'image';
+  /**
+   * Image columns only: the tallest the picture may be, in points. Rows grow
+   * to fit it. Defaults to DEFAULT_IMAGE_HEIGHT.
+   */
+  imageHeight?: number;
 }
 
 export interface TableFooterRow {
@@ -189,6 +199,23 @@ export interface TableFlowItem {
   };
   /** Totals block; kept together, never split from itself. */
   footer?: { rows: TableFooterRow[]; rowGap?: number };
+  /** Product images in the rows. Absent → image columns are drawn as declared. */
+  images?: TableImages;
+}
+
+/** How a table treats the product pictures in its rows. */
+export interface TableImages {
+  /**
+   * The template author's answer to "does this document carry photos?".
+   * A host can override it per document with renderPdf's `includeImages`;
+   * when images are off, image columns are dropped and the rest reflows.
+   */
+  enabled: boolean;
+  /**
+   * Drawn for rows whose product has no picture. Defaults to the placeholder
+   * bundled with the package (PLACEHOLDER_IMAGE_ASSET).
+   */
+  fallbackAssetId?: string;
 }
 
 export interface TextBlockFlowItem {

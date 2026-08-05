@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { planLayout } from '../src/render/layout';
-import type { TableFlowItem, Template, TemplateElement } from '../src/core';
+import {
+  imageRefFor,
+  PLACEHOLDER_IMAGE_ASSET,
+  type TableFlowItem,
+  type Template,
+  type TemplateElement
+} from '../src/core';
 import { baseTemplate, fakeMeasure, items, region, style } from './helpers';
 
 const table = (overrides: Partial<TableFlowItem> = {}): TableFlowItem => ({
@@ -186,5 +192,126 @@ describe('planLayout — static templates and scopes', () => {
     const op = result.pages[0]!.ops.find(o => o.op === 'text')!;
     // top = 792 - 85 - 12 = 695 → baseline = 695 + size(10) = 705
     expect((op as { y: number }).y).toBe(705);
+  });
+});
+
+describe('planLayout — product images in table rows', () => {
+  const PHOTO_URL = 'https://cdn.example.com/panel.png';
+
+  const imageTable = (overrides: Partial<TableFlowItem> = {}): TableFlowItem =>
+    table({
+      columns: [
+        { itemKey: 'photo', label: 'Foto', width: 54, align: 'center', kind: 'image', imageHeight: 36 },
+        { itemKey: 'description', label: 'Descripción', width: 'flex' },
+        { itemKey: 'total', label: 'TOTAL', width: 100, align: 'right', format: { type: 'currency' } }
+      ],
+      images: { enabled: true },
+      ...overrides
+    });
+
+  const rows = [
+    { photo: PHOTO_URL, description: 'Con foto', total: 100 },
+    { photo: '', description: 'Sin foto', total: 200 }
+  ];
+
+  /** Both the product photo and the bundled fallback, already "embedded". */
+  const embedded = () =>
+    new Map([
+      [imageRefFor(PHOTO_URL), { width: 200, height: 100 }],
+      [imageRefFor(PLACEHOLDER_IMAGE_ASSET), { width: 320, height: 320 }]
+    ]);
+
+  const planImages = (
+    item: TableFlowItem,
+    opts: {
+      images?: Map<string, { width: number; height: number }>;
+      includeImages?: boolean;
+    } = {}
+  ) =>
+    planLayout({
+      template: flowTemplate([item]),
+      data: { items: rows },
+      measure: fakeMeasure,
+      images: opts.images ?? embedded(),
+      includeImages: opts.includeImages
+    });
+
+  const imageOps = (result: ReturnType<typeof planImages>) =>
+    result.pages[0]!.ops.filter(op => op.op === 'image');
+
+  const textOp = (result: ReturnType<typeof planImages>, text: string) => {
+    const op = result.pages[0]!.ops.find(o => o.op === 'text' && o.text === text);
+    if (op?.op !== 'text') throw new Error(`no text op for '${text}'`);
+    return op;
+  };
+
+  it('draws one picture per row, falling back for products without one', () => {
+    const ops = imageOps(planImages(imageTable()));
+    expect(ops.map(op => op.ref)).toEqual([
+      imageRefFor(PHOTO_URL),
+      imageRefFor(PLACEHOLDER_IMAGE_ASSET)
+    ]);
+    // Contained inside the cell: 54pt wide minus 6pt padding a side, 36pt tall.
+    expect(ops[0]).toMatchObject({ width: 42, height: 21 });
+    expect(ops[1]).toMatchObject({ width: 36, height: 36 });
+  });
+
+  it('grows rows so the picture fits', () => {
+    const withPictures = planImages(imageTable());
+    const without = planImages(imageTable(), { includeImages: false });
+    // Second row sits lower once the first row has to fit a 21pt picture.
+    expect(textOp(withPictures, 'Sin foto').y).toBeGreaterThan(
+      textOp(without, 'Sin foto').y
+    );
+  });
+
+  it('drops image columns when the document leaves images out', () => {
+    const result = planImages(imageTable(), { includeImages: false });
+    expect(imageOps(result)).toHaveLength(0);
+    // The freed 54pt go back to the table: the description slides left into
+    // the region edge (plus the row padding) instead of after the photo.
+    const descX = (r: ReturnType<typeof planImages>) => textOp(r, 'Con foto').x;
+    expect(descX(result)).toBe(region().x + 6);
+    expect(descX(planImages(imageTable()))).toBe(region().x + 54 + 6);
+  });
+
+  it('honours the template switch when the document has no opinion', () => {
+    const off = planImages(imageTable({ images: { enabled: false } }));
+    expect(imageOps(off)).toHaveLength(0);
+    // ...and the document can still force them back on.
+    const forced = planImages(imageTable({ images: { enabled: false } }), {
+      includeImages: true
+    });
+    expect(imageOps(forced)).toHaveLength(2);
+  });
+
+  it('keeps image columns for tables that never configured images', () => {
+    const result = planImages(imageTable({ images: undefined }));
+    expect(imageOps(result)).toHaveLength(2);
+  });
+
+  it('warns and leaves the cell empty when a picture never loaded', () => {
+    const result = planImages(imageTable(), { images: new Map() });
+    expect(imageOps(result)).toHaveLength(0);
+    expect(result.warnings.some(w => w.includes('2 row image(s)'))).toBe(true);
+  });
+
+  it('uses the table fallback instead of the bundled one when set', () => {
+    const item = imageTable({ images: { enabled: true, fallbackAssetId: 'asset-9' } });
+    const images = embedded();
+    images.set(imageRefFor('asset-9'), { width: 100, height: 50 });
+    const ops = imageOps(planImages(item, { images }));
+    expect(ops[1]!.ref).toBe(imageRefFor('asset-9'));
+  });
+
+  it('skips a table whose only column is a hidden image column', () => {
+    const item = imageTable({
+      columns: [
+        { itemKey: 'photo', label: 'Foto', width: 54, kind: 'image' }
+      ]
+    });
+    const result = planImages(item, { includeImages: false });
+    expect(result.warnings.some(w => w.includes('every column is hidden'))).toBe(true);
+    expect(result.pages[0]!.ops.filter(op => op.op === 'text')).toHaveLength(0);
   });
 });

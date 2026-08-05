@@ -1,6 +1,7 @@
 export * from './types';
 export * from './pages';
 export * from './model';
+export * from './tables';
 export * from './ids';
 export {
   createStarterTemplate,

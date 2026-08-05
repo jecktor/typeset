@@ -18,6 +18,7 @@ import { FlowItemPanel } from './FlowItemPanel';
 import { Palette } from './Palette';
 import { PreviewPane } from './PreviewPane';
 import { PropertiesPanel } from './PropertiesPanel';
+import { EditorStringsProvider, type EditorStrings } from './strings';
 import { markTourDone, shouldAutoStartTour, Tour } from './Tour';
 import { themeStyle, type EditorTheme } from './theme';
 import {
@@ -44,6 +45,8 @@ export interface TemplateEditorProps {
   formatters?: FormatterRegistry;
   /** First-run guided tour (persisted in localStorage). Default true. */
   tour?: boolean;
+  /** Overrides for the editor's own labels; see DEFAULT_EDITOR_STRINGS. */
+  strings?: Partial<EditorStrings>;
   /** Brand colors; equivalent to setting --pde-* variables on an ancestor. */
   theme?: EditorTheme;
   className?: string;
@@ -269,7 +272,11 @@ function EditorShell({
             <Palette descriptor={descriptor} />
             <Canvas assets={assets} descriptor={descriptor} />
             {selectedFlowId ? (
-              <FlowItemPanel descriptor={descriptor} onAssetUpload={onAssetUpload} />
+              <FlowItemPanel
+                descriptor={descriptor}
+                assets={assets}
+                onAssetUpload={onAssetUpload}
+              />
             ) : (
               <PropertiesPanel descriptor={descriptor} onAssetUpload={onAssetUpload} />
             )}
@@ -321,15 +328,17 @@ export function TemplateEditor(props: TemplateEditorProps) {
 
   return (
     <EditorContext.Provider value={store}>
-      <EditorShell
-        models={props.models}
-        assets={props.assets}
-        onAssetUpload={props.onAssetUpload}
-        formatters={props.formatters}
-        tour={props.tour}
-        theme={props.theme}
-        className={className}
-      />
+      <EditorStringsProvider value={props.strings}>
+        <EditorShell
+          models={props.models}
+          assets={props.assets}
+          onAssetUpload={props.onAssetUpload}
+          formatters={props.formatters}
+          tour={props.tour}
+          theme={props.theme}
+          className={className}
+        />
+      </EditorStringsProvider>
     </EditorContext.Provider>
   );
 }

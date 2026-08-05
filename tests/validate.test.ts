@@ -117,3 +117,46 @@ describe('validateTemplate', () => {
     expect(issues.some(i => i.message.includes('nope'))).toBe(true);
   });
 });
+
+describe('validateTemplate — product images', () => {
+  const tableOf = (template: Template) => {
+    const item = template.flow!.stack[0]!;
+    if (item.kind !== 'table') throw new Error('expected a table');
+    return item;
+  };
+
+  it('warns when images are on but no column shows them', () => {
+    const template = flowTemplate();
+    tableOf(template).images = { enabled: true };
+    const issues = validateTemplate(template, descriptor);
+    expect(issues.some(i => i.message.includes('ninguna columna'))).toBe(true);
+  });
+
+  it('warns when an image column is bound to a field that is not a picture', () => {
+    const template = flowTemplate();
+    const table = tableOf(template);
+    table.images = { enabled: true };
+    table.columns[0] = { ...table.columns[0]!, kind: 'image' };
+    const issues = validateTemplate(template, descriptor);
+    expect(issues.some(i => i.message.includes('no es una imagen'))).toBe(true);
+  });
+
+  it('stays quiet for an image column bound to a picture field', () => {
+    const withPhoto: ModelDescriptor = {
+      ...descriptor,
+      fields: descriptor.fields.map(f =>
+        f.kind === 'list'
+          ? { ...f, itemFields: [...f.itemFields, { key: 'photo', label: 'Foto', type: 'image-url' as const }] }
+          : f
+      )
+    };
+    const template = flowTemplate();
+    const table = tableOf(template);
+    table.images = { enabled: true };
+    table.columns = [
+      ...table.columns,
+      { itemKey: 'photo', label: 'Foto', width: 54, kind: 'image' }
+    ];
+    expect(validateTemplate(template, withPhoto)).toEqual([]);
+  });
+});

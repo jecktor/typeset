@@ -1,16 +1,25 @@
 import { useEffect, useRef, type ChangeEvent } from 'react';
-import type {
-  ListFieldDescriptor,
-  ModelDescriptor,
-  TableColumn,
-  TableFlowItem,
-  ValueFormat
+import {
+  DEFAULT_IMAGE_COLUMN_WIDTH,
+  DEFAULT_IMAGE_HEIGHT,
+  isImageColumn,
+  PLACEHOLDER_IMAGE_ASSET,
+  tableShowsImages,
+  type ListFieldDescriptor,
+  type ModelDescriptor,
+  type TableColumn,
+  type TableFlowItem,
+  type ValueFormat
 } from '../core';
+import type { AssetsInput } from '../render';
 import { CheckboxField, NumberField, SelectField, StyleFields } from './fields';
+import { useEditorStrings } from './strings';
+import { useAssetUrl } from './useAssetUrl';
 import { useEditor } from './store';
 
 interface Props {
   descriptor?: ModelDescriptor;
+  assets?: AssetsInput;
   onAssetUpload?: (file: File) => Promise<{ assetId: string }>;
 }
 
@@ -22,25 +31,67 @@ const FORMAT_TYPES: Array<{ value: ValueFormat['type']; label: string }> = [
   { value: 'boolean', label: 'Sí/No' }
 ];
 
+/** Preview of the picture rows fall back to — the author's or the built-in. */
+function FallbackImagePreview({
+  assetId,
+  assets
+}: {
+  assetId?: string;
+  assets?: AssetsInput;
+}) {
+  const src = useAssetUrl(assets, assetId || PLACEHOLDER_IMAGE_ASSET);
+  if (!src) return null;
+  return <img className="pde-fallback-image" src={src} alt="" draggable={false} />;
+}
+
 function TableEditor({
   item,
-  descriptor
+  descriptor,
+  assets,
+  onAssetUpload
 }: {
   item: TableFlowItem;
   descriptor?: ModelDescriptor;
+  assets?: AssetsInput;
+  onAssetUpload?: Props['onAssetUpload'];
 }) {
+  const strings = useEditorStrings();
   const updateFlowItem = useEditor(s => s.updateFlowItem);
   const scalars =
     descriptor?.fields.filter(f => f.kind === 'scalar') ?? [];
   const lists = (descriptor?.fields.filter(f => f.kind === 'list') ??
     []) as ListFieldDescriptor[];
   const currentList = lists.find(l => l.key === item.binding);
+  const imageFields =
+    currentList?.itemFields.filter(f => f.type === 'image-url') ?? [];
+  const showsImages = tableShowsImages(item);
+  const hasImageColumn = item.columns.some(isImageColumn);
 
   const patch = (p: Partial<TableFlowItem>) => updateFlowItem(item.id, p);
   const patchColumn = (i: number, p: Partial<TableColumn>) =>
     patch({
       columns: item.columns.map((c, ci) => (ci === i ? { ...c, ...p } : c))
     });
+  const patchImages = (p: Partial<NonNullable<TableFlowItem['images']>>) =>
+    patch({ images: { enabled: showsImages, ...item.images, ...p } });
+
+  /** Column order is left-to-right in the table; earlier card = earlier column. */
+  const moveColumn = (i: number, direction: -1 | 1) => {
+    const target = i + direction;
+    if (target < 0 || target >= item.columns.length) return;
+    const columns = [...item.columns];
+    [columns[i], columns[target]] = [columns[target]!, columns[i]!];
+    patch({ columns });
+  };
+
+  /** Turning a column into a picture: keep what the author set, fill the rest. */
+  const asImageColumn = (col: TableColumn): Partial<TableColumn> => ({
+    kind: 'image',
+    format: undefined,
+    align: col.align ?? 'center',
+    width: col.width === 'flex' ? DEFAULT_IMAGE_COLUMN_WIDTH : col.width,
+    imageHeight: col.imageHeight ?? DEFAULT_IMAGE_HEIGHT
+  });
 
   return (
     <>
@@ -57,6 +108,29 @@ function TableEditor({
       <div className="pde-columns">
         {item.columns.map((col, i) => (
           <div key={i} className="pde-column-card">
+            <div className="pde-column-card__head">
+              <span className="pde-column-card__index">
+                {i + 1}. {col.label || '—'}
+              </span>
+              <span className="pde-stack__actions">
+                <button
+                  type="button"
+                  title={strings.columnMoveEarlier}
+                  disabled={i === 0}
+                  onClick={() => moveColumn(i, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  title={strings.columnMoveLater}
+                  disabled={i === item.columns.length - 1}
+                  onClick={() => moveColumn(i, 1)}
+                >
+                  ↓
+                </button>
+              </span>
+            </div>
             <div className="pde-props__grid">
               <label className="pde-field">
                 <span>Título</span>
@@ -75,9 +149,15 @@ function TableEditor({
                   }))}
                   onChange={itemKey => {
                     const f = currentList.itemFields.find(x => x.key === itemKey);
+                    // Picking a picture field turns the column into a picture.
+                    if (f?.type === 'image-url') {
+                      patchColumn(i, { itemKey, ...asImageColumn(col) });
+                      return;
+                    }
                     patchColumn(i, {
                       itemKey,
-                      ...(f ? { format: { type: f.type, pattern: f.format } } : {})
+                      ...(f ? { format: { type: f.type, pattern: f.format } } : {}),
+                      ...(isImageColumn(col) ? { kind: 'text' as const } : {})
                     });
                   }}
                 />
@@ -130,6 +210,28 @@ function TableEditor({
                 }
               />
               <SelectField
+                label={strings.columnContent}
+                value={isImageColumn(col) ? 'image' : 'text'}
+                options={[
+                  { value: 'text', label: strings.columnContentText },
+                  { value: 'image', label: strings.columnContentImage }
+                ]}
+                onChange={kind =>
+                  patchColumn(
+                    i,
+                    kind === 'image' ? asImageColumn(col) : { kind: 'text' }
+                  )
+                }
+              />
+            </div>
+            {isImageColumn(col) ? (
+              <NumberField
+                label={strings.columnImageHeight}
+                value={col.imageHeight ?? DEFAULT_IMAGE_HEIGHT}
+                onChange={imageHeight => patchColumn(i, { imageHeight })}
+              />
+            ) : (
+              <SelectField
                 label="Formato"
                 value={col.format?.type ?? 'string'}
                 options={FORMAT_TYPES}
@@ -139,7 +241,7 @@ function TableEditor({
                   })
                 }
               />
-            </div>
+            )}
             <button
               type="button"
               className="pde-btn pde-btn--danger pde-column-card__remove"
@@ -171,6 +273,79 @@ function TableEditor({
       >
         + Añadir columna
       </button>
+      <button
+        type="button"
+        className="pde-btn"
+        onClick={() =>
+          patch({
+            columns: [
+              ...item.columns,
+              {
+                itemKey: imageFields[0]?.key ?? currentList?.itemFields[0]?.key ?? '',
+                label: strings.imageColumnLabel,
+                width: DEFAULT_IMAGE_COLUMN_WIDTH,
+                align: 'center',
+                kind: 'image',
+                imageHeight: DEFAULT_IMAGE_HEIGHT
+              }
+            ],
+            // Adding a picture column is intent enough to switch images on.
+            images: { ...item.images, enabled: true }
+          })
+        }
+      >
+        {strings.addImageColumn}
+      </button>
+
+      <h4 className="pde-panel__title">{strings.tableImagesTitle}</h4>
+      <CheckboxField
+        label={strings.tableIncludeImages}
+        checked={showsImages}
+        onChange={enabled => patchImages({ enabled })}
+      />
+      <small className="pde-field__hint">{strings.tableIncludeImagesHint}</small>
+      {showsImages && !hasImageColumn && (
+        <small className="pde-field__hint">{strings.tableNoImageColumn}</small>
+      )}
+      {showsImages && (
+        <div className="pde-fallback">
+          <FallbackImagePreview
+            assetId={item.images?.fallbackAssetId}
+            assets={assets}
+          />
+          <div className="pde-fallback__body">
+            {onAssetUpload ? (
+              <label className="pde-field">
+                <span>{strings.tableFallbackImage}</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  onChange={async e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const { assetId } = await onAssetUpload(file);
+                    patchImages({ fallbackAssetId: assetId });
+                  }}
+                />
+              </label>
+            ) : (
+              <span className="pde-field__hint">{strings.tableFallbackImage}</span>
+            )}
+            <small className="pde-field__hint">
+              {strings.tableFallbackImageHint}
+            </small>
+            {item.images?.fallbackAssetId && (
+              <button
+                type="button"
+                className="pde-btn"
+                onClick={() => patchImages({ fallbackAssetId: undefined })}
+              >
+                {strings.tableFallbackImageReset}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <h4 className="pde-panel__title">Encabezado</h4>
       <div className="pde-props__grid">
@@ -294,7 +469,7 @@ function TableEditor({
   );
 }
 
-export function FlowItemPanel({ descriptor, onAssetUpload }: Props) {
+export function FlowItemPanel({ descriptor, assets, onAssetUpload }: Props) {
   const item = useEditor(s =>
     s.template.flow?.stack.find(it => it.id === s.selectedFlowId)
   );
@@ -341,7 +516,12 @@ export function FlowItemPanel({ descriptor, onAssetUpload }: Props) {
       </div>
 
       {item.kind === 'table' && (
-        <TableEditor item={item} descriptor={descriptor} />
+        <TableEditor
+          item={item}
+          descriptor={descriptor}
+          assets={assets}
+          onAssetUpload={onAssetUpload}
+        />
       )}
 
       {item.kind === 'text-block' && (

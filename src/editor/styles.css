@@ -447,6 +447,15 @@
 .pde-ghost__tr {
   border-bottom: 1px solid var(--_pde-border-soft);
 }
+.pde-ghost__tr span:has(.pde-ghost__cellimg) {
+  overflow: visible;
+}
+.pde-ghost__cellimg {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+  object-fit: contain;
+}
 .pde-ghost__more {
   text-align: center;
   color: var(--_pde-muted);
@@ -722,6 +731,20 @@
   flex-direction: column;
   gap: 8px;
   background: color-mix(in srgb, var(--_pde-surface) 45%, var(--_pde-panel));
+}
+.pde-column-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pde-column-card__index {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--_pde-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .pde-column-card__remove {
   align-self: end;
@@ -1136,6 +1159,34 @@
   color: var(--_pde-danger);
   font-size: 12px;
   font-weight: 500;
+}
+.pde-field__hint {
+  color: var(--_pde-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* Default product picture: the thumbnail sits beside its upload control. */
+.pde-fallback {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.pde-fallback__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.pde-fallback-image {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  flex: none;
+  border: 1px solid var(--_pde-border);
+  border-radius: 8px;
+  background: var(--_pde-surface);
 }
 
 /* ---------- preview ---------- */

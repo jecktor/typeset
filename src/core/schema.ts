@@ -110,7 +110,14 @@ const tableColumnSchema = z.object({
   width: z.union([z.number().positive(), z.literal('flex')]),
   align: z.enum(['left', 'center', 'right']).optional(),
   format: valueFormatSchema.optional(),
-  style: textStyleSchema.optional()
+  style: textStyleSchema.optional(),
+  kind: z.enum(['text', 'image']).optional(),
+  imageHeight: z.number().positive().optional()
+});
+
+const tableImagesSchema = z.object({
+  enabled: z.boolean(),
+  fallbackAssetId: z.string().min(1).optional()
 });
 
 const flowItemSchema = z.discriminatedUnion('kind', [
@@ -147,7 +154,8 @@ const flowItemSchema = z.discriminatedUnion('kind', [
         ),
         rowGap: z.number().nonnegative().optional()
       })
-      .optional()
+      .optional(),
+    images: tableImagesSchema.optional()
   }),
   z.object({
     id: z.string().min(1),

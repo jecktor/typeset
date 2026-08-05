@@ -1,14 +1,20 @@
 import {
+  cellImageSource,
+  DEFAULT_IMAGE_HEIGHT,
   formatValue,
   getByPath,
   interpolate,
+  isImageColumn,
+  visibleColumns,
   type FlowItem,
   type ImageBlockFlowItem,
   type ModelDescriptor,
+  type TableColumn,
   type TableFlowItem
 } from '../core';
 import type { AssetsInput } from '../render';
 import { useImagePreviewSrc } from './ElementBox';
+import { useAssetUrl } from './useAssetUrl';
 import { useEditor } from './store';
 
 /**
@@ -67,18 +73,58 @@ function ImageBlockGhost({
 
 const GHOST_ROWS = 3;
 
-function TableGhost({ item, descriptor }: { item: TableFlowItem; descriptor?: ModelDescriptor }) {
+/** One product picture in the schematic table — the row's own or the fallback. */
+function TableImageCell({
+  item,
+  col,
+  row,
+  assets
+}: {
+  item: TableFlowItem;
+  col: TableColumn;
+  row: unknown;
+  assets?: AssetsInput;
+}) {
+  const zoom = useEditor(s => s.zoom);
+  const source = cellImageSource(row, col, item);
+  const isDirectUrl = /^(https?:|data:|blob:)/.test(source);
+  const resolved = useAssetUrl(assets, isDirectUrl ? undefined : source);
+  const src = isDirectUrl ? source : resolved;
+  const height = (col.imageHeight ?? DEFAULT_IMAGE_HEIGHT) * zoom;
+  if (!src) return <span style={{ height }} />;
+  return (
+    <img
+      className="pde-ghost__cellimg"
+      src={src}
+      alt=""
+      draggable={false}
+      style={{ maxHeight: height }}
+    />
+  );
+}
+
+function TableGhost({
+  item,
+  descriptor,
+  assets
+}: {
+  item: TableFlowItem;
+  descriptor?: ModelDescriptor;
+  assets?: AssetsInput;
+}) {
   const zoom = useEditor(s => s.zoom);
   const locale = useEditor(s => s.template.locale);
   const sample = descriptor?.sample ?? {};
   const listRaw = getByPath(sample, item.binding);
   const rows = Array.isArray(listRaw) ? listRaw.slice(0, GHOST_ROWS) : [];
 
-  const fixed = item.columns.reduce(
+  // Mirrors the renderer: with images off, image columns aren't there at all.
+  const columns = visibleColumns(item);
+  const fixed = columns.reduce(
     (a, c) => a + (typeof c.width === 'number' ? c.width : 0),
     0
   );
-  const flexCount = item.columns.filter(c => c.width === 'flex').length;
+  const flexCount = columns.filter(c => c.width === 'flex').length;
 
   const widthOf = (w: number | 'flex', total: number) =>
     w === 'flex'
@@ -95,7 +141,7 @@ function TableGhost({ item, descriptor }: { item: TableFlowItem; descriptor?: Mo
           fontSize: item.header.style.size * zoom
         }}
       >
-        {item.columns.map((col, i) => (
+        {columns.map((col, i) => (
           <span
             key={i}
             style={{
@@ -113,7 +159,7 @@ function TableGhost({ item, descriptor }: { item: TableFlowItem; descriptor?: Mo
           className="pde-ghost__tr"
           style={{ fontSize: item.row.style.size * zoom }}
         >
-          {item.columns.map((col, ci) => (
+          {columns.map((col, ci) => (
             <span
               key={ci}
               style={{
@@ -121,7 +167,11 @@ function TableGhost({ item, descriptor }: { item: TableFlowItem; descriptor?: Mo
                 textAlign: col.align ?? 'left'
               }}
             >
-              {formatValue(getByPath(row, col.itemKey), col.format, locale)}
+              {isImageColumn(col) ? (
+                <TableImageCell item={item} col={col} row={row} assets={assets} />
+              ) : (
+                formatValue(getByPath(row, col.itemKey), col.format, locale)
+              )}
             </span>
           ))}
         </div>
@@ -148,7 +198,7 @@ function ItemGhost({
 
   switch (item.kind) {
     case 'table':
-      return <TableGhost item={item} descriptor={descriptor} />;
+      return <TableGhost item={item} descriptor={descriptor} assets={assets} />;
     case 'text-block': {
       const text = item.binding
         ? String(getByPath(sample, item.binding) ?? `{${item.binding}}`)

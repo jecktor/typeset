@@ -10,7 +10,12 @@ import {
   type Template
 } from '../core';
 import type { AssetsInput } from '../render';
-import { TemplateEditor, themeStyle, type EditorTheme } from '../editor';
+import {
+  TemplateEditor,
+  themeStyle,
+  type EditorStrings,
+  type EditorTheme
+} from '../editor';
 import { DEFAULT_STRINGS, type ModuleStrings } from './strings';
 import type { TemplateStorageAdapter, TemplateSummary } from './storage';
 
@@ -22,7 +27,8 @@ export interface TemplatesModuleProps {
   onAssetUpload?: (file: File) => Promise<{ assetId: string }>;
   workerSrc?: string;
   formatters?: FormatterRegistry;
-  strings?: Partial<ModuleStrings>;
+  /** Overrides for every label the module shows, editor chrome included. */
+  strings?: Partial<ModuleStrings & EditorStrings>;
   /** First-run guided tour in the editor (persisted). Default true. */
   tour?: boolean;
   /** Brand colors applied to the whole module (list, wizard and editor). */
@@ -316,6 +322,7 @@ export function TemplatesModule(props: TemplatesModuleProps) {
             workerSrc={props.workerSrc}
             formatters={props.formatters}
             tour={props.tour}
+            strings={props.strings}
           />
         </div>
       </div>

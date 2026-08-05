@@ -1,6 +1,10 @@
 import type { PDFDocument, PDFFont, PDFImage, PDFPage } from 'pdf-lib';
 import {
+  cellImageSource,
   getByPath,
+  imageRefFor,
+  isImageColumn,
+  tableShowsImages,
   type FormatterRegistry,
   type MeasureProvider,
   type Template
@@ -21,6 +25,12 @@ export interface RenderOptions {
   formatters?: FormatterRegistry;
   /** Fetches bytes for 'image-url' bindings. Defaults to global fetch. */
   fetchImage?: (url: string) => Promise<Uint8Array>;
+  /**
+   * Product images in table rows, decided per document: true forces them on,
+   * false leaves them out (the columns disappear and the table reflows).
+   * Absent → whatever each table's own switch says.
+   */
+  includeImages?: boolean;
   /** Layout warnings (missing images, frame overflows...) are reported here. */
   onWarning?: (warning: string) => void;
 }
@@ -33,27 +43,46 @@ interface ImageRef {
 
 function collectImageRefs(
   template: Template,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  includeImages?: boolean
 ): ImageRef[] {
-  const refs: ImageRef[] = [];
+  const refs = new Map<string, ImageRef>();
+  const addSource = (id: string, source: string) => {
+    if (refs.has(id)) return;
+    refs.set(
+      id,
+      /^https?:\/\//.test(source) ? { id, url: source } : { id, assetId: source }
+    );
+  };
   const add = (id: string, assetId?: string, binding?: string) => {
     if (assetId) {
-      refs.push({ id, assetId });
+      refs.set(id, { id, assetId });
       return;
     }
     if (!binding) return;
     const value = getByPath(data, binding);
     if (typeof value !== 'string' || !value) return;
-    if (/^https?:\/\//.test(value)) refs.push({ id, url: value });
-    else refs.push({ id, assetId: value });
+    addSource(id, value);
   };
   for (const el of template.elements) {
     if (el.kind === 'image') add(el.id, el.assetId, el.binding);
   }
   for (const item of template.flow?.stack ?? []) {
     if (item.kind === 'image-block') add(item.id, item.assetId, item.binding);
+    if (item.kind !== 'table' || !tableShowsImages(item, includeImages)) continue;
+    const imageColumns = item.columns.filter(isImageColumn);
+    if (imageColumns.length === 0) continue;
+    const list = getByPath(data, item.binding);
+    if (!Array.isArray(list)) continue;
+    // Keyed by source, so one fallback shared by 200 rows embeds once.
+    for (const row of list) {
+      for (const col of imageColumns) {
+        const source = cellImageSource(row, col, item);
+        addSource(imageRefFor(source), source);
+      }
+    }
   }
-  return refs;
+  return [...refs.values()];
 }
 
 async function defaultFetchImage(url: string): Promise<Uint8Array> {
@@ -184,7 +213,7 @@ export async function renderPdf(options: RenderOptions): Promise<Uint8Array> {
   // Images: embed up front so layout knows intrinsic sizes.
   const images = new Map<string, PDFImage>();
   const imageInfos = new Map<string, { width: number; height: number }>();
-  for (const ref of collectImageRefs(template, data)) {
+  for (const ref of collectImageRefs(template, data, options.includeImages)) {
     try {
       const bytes = ref.url
         ? await (options.fetchImage ?? defaultFetchImage)(ref.url)
@@ -204,7 +233,8 @@ export async function renderPdf(options: RenderOptions): Promise<Uint8Array> {
     data,
     measure,
     images: imageInfos,
-    formatters: options.formatters
+    formatters: options.formatters,
+    includeImages: options.includeImages
   });
   for (const warning of plan.warnings) options.onWarning?.(warning);
 

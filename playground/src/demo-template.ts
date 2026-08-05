@@ -131,6 +131,7 @@ export const demoTemplate: Template = {
         kind: 'table',
         binding: 'items',
         columns: [
+          { itemKey: 'photo', label: 'Foto', width: 54, align: 'center', kind: 'image', imageHeight: 36 },
           { itemKey: 'cantidad', label: 'Cantidad', width: 60, align: 'right' },
           { itemKey: 'description', label: 'Descripción', width: 'flex' },
           { itemKey: 'subtotal', label: 'Subtotal', width: 90, align: 'right', format: { type: 'currency' } },
@@ -150,6 +151,7 @@ export const demoTemplate: Template = {
           style: body(10),
           divider: { color: BORDER, thickness: 0.5 }
         },
+        images: { enabled: true },
         footer: {
           rowGap: 16,
           rows: [
@@ -184,6 +186,8 @@ export function demoSample() {
     const subtotal = 1850 + i * 745.5;
     const tax = subtotal * 0.16;
     return {
+      // Every third item has no photo, so the fallback shows up in preview.
+      photo: i % 3 === 2 ? '' : i % 2 === 0 ? 'product-a' : 'product-b',
       cantidad: (i % 4) + 1,
       description,
       subtotal,

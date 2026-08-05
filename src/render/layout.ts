@@ -5,10 +5,15 @@
  * can reuse it for true-to-output preview math.
  */
 import {
+  cellImageSource,
+  DEFAULT_IMAGE_HEIGHT,
   formatValue,
   getByPath,
+  imageRefFor,
   interpolate,
+  isImageColumn,
   lineHeightOf,
+  visibleColumns,
   wrapText,
   type BackgroundRef,
   type FlowRegion,
@@ -17,6 +22,7 @@ import {
   type ImageBlockFlowItem,
   type MeasureProvider,
   type PageScope,
+  type TableColumn,
   type TableFlowItem,
   type Template,
   type TemplateElement,
@@ -50,9 +56,17 @@ export interface LayoutInput {
   template: Template;
   data: Record<string, unknown>;
   measure: MeasureProvider;
-  /** Intrinsic image sizes keyed by element / flow-item id. */
+  /**
+   * Intrinsic image sizes keyed by element / flow-item id, and by
+   * imageRefFor(source) for the pictures inside table rows.
+   */
   images: Map<string, ImageInfo>;
   formatters?: FormatterRegistry;
+  /**
+   * Per-document override for product images in tables: true forces them on,
+   * false leaves them out. Absent → each table's own `images.enabled`.
+   */
+  includeImages?: boolean;
 }
 
 export interface LayoutResult {
@@ -68,6 +82,7 @@ export function planLayout(input: LayoutInput): LayoutResult {
   const { template, data, measure, images } = input;
   const { locale } = template;
   const formatters = input.formatters;
+  const includeImages = input.includeImages;
   const pageH = template.pageSize.height;
   const warnings: string[] = [];
   const pages: PlannedPage[] = [];
@@ -304,15 +319,22 @@ export function planLayout(input: LayoutInput): LayoutResult {
       return;
     }
 
+    // Hidden image columns give their width back to the rest of the table.
+    const columns = visibleColumns(item, includeImages);
+    if (columns.length === 0) {
+      warnings.push(`table '${item.id}': every column is hidden — skipped`);
+      return;
+    }
+
     const columnGeometry = () => {
-      const fixed = item.columns.reduce(
+      const fixed = columns.reduce(
         (acc, c) => acc + (typeof c.width === 'number' ? c.width : 0),
         0
       );
-      const flexCount = item.columns.filter(c => c.width === 'flex').length;
+      const flexCount = columns.filter(c => c.width === 'flex').length;
       const flexW = flexCount > 0 ? Math.max(0, (region.width - fixed) / flexCount) : 0;
       let x = region.x;
-      return item.columns.map(col => {
+      return columns.map(col => {
         const w = col.width === 'flex' ? flexW : col.width;
         const geo = { col, x, w };
         x += w;
@@ -345,32 +367,79 @@ export function planLayout(input: LayoutInput): LayoutResult {
 
     const rowLh = lineHeightOf(item.row.style);
     const rowPadY = item.row.paddingY ?? item.row.padding;
+    /** Rows whose picture never made it into the image map. */
+    let missingImages = 0;
+
+    /** Horizontal placement of `width` points of content inside a cell. */
+    const cellX = (col: TableColumn, x: number, w: number, width: number) =>
+      col.align === 'right'
+        ? x + w - width - item.row.padding
+        : col.align === 'center'
+          ? x + (w - width) / 2
+          : x + item.row.padding;
+
     for (const rowData of list) {
       const cells = columnGeometry().map(({ col, x, w }) => {
+        const inner = Math.max(1, w - item.row.padding * 2);
+        if (isImageColumn(col)) {
+          // The row's own photo, or the table's fallback for products
+          // without one — cellImageSource() already made that choice.
+          const ref = imageRefFor(cellImageSource(rowData, col, item));
+          const info = images.get(ref);
+          if (!info) {
+            missingImages++;
+            return { kind: 'image' as const, col, x, w, image: null };
+          }
+          const maxH = col.imageHeight ?? DEFAULT_IMAGE_HEIGHT;
+          const scale = Math.min(inner / info.width, maxH / info.height);
+          const image = {
+            ref,
+            width: info.width * scale,
+            height: info.height * scale
+          };
+          return { kind: 'image' as const, col, x, w, image };
+        }
         const style = col.style ?? item.row.style;
         const font = measure(style.font);
         const text = formatValue(getByPath(rowData, col.itemKey), col.format, locale, formatters);
-        const lines = wrapText(text, font, style.size, Math.max(1, w - item.row.padding * 2));
-        return { col, x, w, style, font, lines };
+        const lines = wrapText(text, font, style.size, inner);
+        return { kind: 'text' as const, col, x, w, style, font, lines };
       });
-      const maxLines = Math.max(1, ...cells.map(c => c.lines.length));
-      const rowH = Math.max(item.row.minHeight, maxLines * rowLh + rowPadY * 2);
+
+      const textCells = cells.filter(c => c.kind === 'text');
+      const maxLines = Math.max(1, ...textCells.map(c => c.lines.length));
+      const tallestImage = Math.max(
+        0,
+        ...cells.map(c => (c.kind === 'image' ? (c.image?.height ?? 0) : 0))
+      );
+      const rowH = Math.max(
+        item.row.minHeight,
+        textCells.length > 0 ? maxLines * rowLh + rowPadY * 2 : 0,
+        tallestImage > 0 ? tallestImage + rowPadY * 2 : 0
+      );
 
       ensureSpace(rowH, () => {
         if (item.header.repeatOnContinuation) drawHeader();
       });
 
       for (const cell of cells) {
+        if (cell.kind === 'image') {
+          if (!cell.image) continue;
+          page.ops.push({
+            op: 'image',
+            ref: cell.image.ref,
+            x: cellX(cell.col, cell.x, cell.w, cell.image.width),
+            // Pictures ride the middle of the row; text starts at its top.
+            y: cursor + (rowH - cell.image.height) / 2,
+            width: cell.image.width,
+            height: cell.image.height
+          });
+          continue;
+        }
         let baseline = cursor + rowPadY + cell.style.size;
         for (const line of cell.lines) {
           const tw = cell.font.widthOfTextAtSize(line, cell.style.size);
-          const tx =
-            cell.col.align === 'right'
-              ? cell.x + cell.w - tw - item.row.padding
-              : cell.col.align === 'center'
-                ? cell.x + (cell.w - tw) / 2
-                : cell.x + item.row.padding;
-          page.ops.push({ op: 'text', x: tx, y: baseline, text: line, font: cell.style.font, size: cell.style.size, color: cell.style.color });
+          page.ops.push({ op: 'text', x: cellX(cell.col, cell.x, cell.w, tw), y: baseline, text: line, font: cell.style.font, size: cell.style.size, color: cell.style.color });
           baseline += rowLh;
         }
       }
@@ -378,6 +447,12 @@ export function planLayout(input: LayoutInput): LayoutResult {
         page.ops.push({ op: 'line', x1: region.x, y1: cursor + rowH, x2: region.x + region.width, y2: cursor + rowH, thickness: item.row.divider.thickness, color: item.row.divider.color });
       }
       cursor += rowH;
+    }
+
+    if (missingImages > 0) {
+      warnings.push(
+        `table '${item.id}': ${missingImages} row image(s) could not be loaded — cells left empty`
+      );
     }
 
     if (item.footer && item.footer.rows.length > 0) {

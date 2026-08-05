@@ -6,6 +6,7 @@ export {
   type AssetsInput
 } from './assets';
 export { sniffImageType } from './images';
+export { placeholderImageBytes } from './placeholder';
 export {
   planLayout,
   type DrawOp,

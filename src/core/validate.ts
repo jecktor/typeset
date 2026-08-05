@@ -1,4 +1,5 @@
 import type { ModelDescriptor } from './model';
+import { isImageColumn } from './tables';
 import type { Template } from './types';
 
 export interface ValidationIssue {
@@ -106,6 +107,14 @@ export function validateTemplate(
           ref: item.id
         });
       }
+      if (item.images?.enabled && !item.columns.some(isImageColumn)) {
+        issues.push({
+          severity: 'warning',
+          message:
+            'La tabla incluye imágenes pero ninguna columna las muestra; añade una columna de imagen',
+          ref: item.id
+        });
+      }
       checkFont(item.header.style.font, item.id);
       checkFont(item.row.style.font, item.id);
       for (const col of item.columns) if (col.style) checkFont(col.style.font, item.id);
@@ -122,12 +131,20 @@ export function validateTemplate(
             ref: item.id
           });
         } else {
-          const itemKeys = new Set(list.itemFields.map(f => f.key));
+          const itemTypes = new Map(list.itemFields.map(f => [f.key, f.type]));
           for (const col of item.columns) {
-            if (!itemKeys.has(col.itemKey)) {
+            if (!itemTypes.has(col.itemKey)) {
               issues.push({
                 severity: 'warning',
                 message: `La columna «${col.label}» usa el campo «${col.itemKey}» que no existe en «${list.label}»`,
+                ref: item.id
+              });
+              continue;
+            }
+            if (isImageColumn(col) && itemTypes.get(col.itemKey) !== 'image-url') {
+              issues.push({
+                severity: 'warning',
+                message: `La columna «${col.label}» muestra imágenes, pero el campo «${col.itemKey}» no es una imagen; las partidas usarán la imagen por defecto`,
                 ref: item.id
               });
             }

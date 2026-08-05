@@ -3,7 +3,7 @@ import path from 'node:path';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 import type { Template } from '../src/core';
-import { renderPdf } from '../src/render';
+import { placeholderImageBytes, renderPdf } from '../src/render';
 import { items, style } from './helpers';
 
 /** Build a fake letterhead background PDF (logo mark + footer band). */
@@ -179,5 +179,116 @@ describe('renderPdf (integration)', () => {
     await expect(
       renderPdf({ template, data, assets: { 'font-1': new Uint8Array([1]) } })
     ).rejects.toThrow(/fontkit/);
+  });
+});
+
+describe('renderPdf — product images in table rows', () => {
+  /** 1×1 red PNG, standing in for a product photo behind a URL. */
+  const png = Uint8Array.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+    0x0c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
+    0x00, 0x00, 0x03, 0x00, 0x01, 0x99, 0x0c, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+    0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+  ]);
+  const PHOTO_URL = 'https://cdn.example.com/panel.png';
+
+  const withPhotos: Template = {
+    ...cotizacionTemplate,
+    background: undefined,
+    flow: {
+      ...cotizacionTemplate.flow!,
+      stack: cotizacionTemplate.flow!.stack.map(item =>
+        item.kind === 'table'
+          ? {
+              ...item,
+              columns: [
+                { itemKey: 'photo', label: 'Foto', width: 54, align: 'center' as const, kind: 'image' as const, imageHeight: 36 },
+                ...item.columns
+              ],
+              images: { enabled: true }
+            }
+          : item
+      )
+    }
+  };
+
+  /** Three photographed items and two without — the fallback covers those. */
+  const photoData = {
+    ...data,
+    items: items(5).map((item, i) => ({ ...item, photo: i < 3 ? PHOTO_URL : '' }))
+  };
+
+  it('embeds each distinct picture once and falls back for the rest', async () => {
+    const warnings: string[] = [];
+    const fetched: string[] = [];
+    const bytes = await renderPdf({
+      template: withPhotos,
+      data: photoData,
+      fetchImage: async url => {
+        fetched.push(url);
+        return png;
+      },
+      onWarning: w => warnings.push(w)
+    });
+
+    // One fetch for three rows sharing a URL; the bundled placeholder needs
+    // no host asset at all, so rendering succeeds without an assets input.
+    expect(fetched).toEqual([PHOTO_URL]);
+    expect(warnings).toEqual([]);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
+  });
+
+  it('leaves the pictures out when the document asks for none', async () => {
+    const fetched: string[] = [];
+    const warnings: string[] = [];
+    await renderPdf({
+      template: withPhotos,
+      data: photoData,
+      includeImages: false,
+      fetchImage: async url => {
+        fetched.push(url);
+        return png;
+      },
+      onWarning: w => warnings.push(w)
+    });
+    expect(fetched).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+});
+
+describe('the bundled placeholder', () => {
+  /** PNG chunk CRCs: any corrupted byte in the inlined base64 fails here. */
+  function crcErrors(png: Uint8Array): string[] {
+    const table = Array.from({ length: 256 }, (_, n) => {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      return c;
+    });
+    const crc32 = (bytes: Uint8Array) => {
+      let c = -1;
+      for (const b of bytes) c = table[(c ^ b) & 0xff]! ^ (c >>> 8);
+      return (c ^ -1) >>> 0;
+    };
+    const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
+    const errors: string[] = [];
+    let pos = 8;
+    while (pos + 12 <= png.length) {
+      const len = view.getUint32(pos);
+      const type = String.fromCharCode(...png.slice(pos + 4, pos + 8));
+      const expected = view.getUint32(pos + 8 + len);
+      if (crc32(png.slice(pos + 4, pos + 8 + len)) !== expected) errors.push(type);
+      pos += 12 + len;
+    }
+    return errors;
+  }
+
+  it('is an intact PNG pdf-lib can embed', async () => {
+    const bytes = placeholderImageBytes();
+    expect(crcErrors(bytes)).toEqual([]);
+    const doc = await PDFDocument.create();
+    const image = await doc.embedPng(bytes);
+    expect([image.width, image.height]).toEqual([320, 320]);
   });
 });

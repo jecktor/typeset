@@ -10,7 +10,9 @@ import { MODELS } from './models';
 
 const PUBLIC_ASSETS: Record<string, string> = {
   letterhead: '/letterhead.pdf',
-  signature: '/signature.png'
+  signature: '/signature.png',
+  'product-a': '/product-a.png',
+  'product-b': '/product-b.png'
 };
 
 /** Uploads persist for the session only (playground). */

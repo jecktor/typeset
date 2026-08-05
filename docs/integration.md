@@ -66,6 +66,50 @@ export async function buildPdf(record: MyRecord): Promise<Uint8Array> {
 
 `renderPdf` does zero I/O of its own: everything arrives as bytes through the
 resolver, so the same call works in a Next route handler and in the browser.
+
+### Product images in the line items
+
+A table column with `kind: 'image'` draws each row's picture instead of text.
+The column's `itemKey` points at an `image-url` field, whose value is either a
+URL (fetched with `fetchImage`, `fetch` by default) or an assetId (resolved
+like any other asset). Rows whose product has no picture fall back to the
+table's `images.fallbackAssetId`, and without one to the placeholder bundled
+in the package — so empty cells never happen and hosts need not upload
+anything to get started.
+
+Whether the pictures ship is decided twice. The template author sets the
+default in the editor (`images.enabled` on the table), and the code that
+issues a given document overrides it:
+
+```ts
+await renderPdf({
+  template,
+  data: cotizacion,
+  includeImages: cotizacion.conFotos, // true forces on, false leaves out
+  assets
+});
+```
+
+With images off the image columns are not drawn at all: their width goes back
+to the remaining columns and the table reflows. Omit `includeImages` to let
+each table's own switch decide. Distinct pictures are embedded once no matter
+how many rows share them, so a fallback repeated down 200 rows costs one
+image.
+
+Declare the field as `image-url` in the model and the starter template picks
+it up automatically as an image column:
+
+```ts
+{
+  kind: 'list',
+  key: 'conceptos',
+  label: 'Conceptos',
+  itemFields: [
+    { key: 'foto', label: 'Foto', type: 'image-url' },
+    { key: 'descripcion', label: 'Descripción', type: 'string' }
+  ]
+}
+```
 Real-world reference: the consuming app keeps a thin builder module that binds its records and assets to a stored template.
 
 ## Describing your models (`ModelDescriptor`)
@@ -144,8 +188,25 @@ const storage: TemplateStorageAdapter = {
 - `onAssetUpload` receives background PDFs and images; return the id your
   `assets` resolver will later understand. The package never stores files.
 - Saving is blocked while `validateTemplate` reports errors (warnings pass).
-- `strings` overrides any UI text of the module; `tour={false}` disables the
-  editor's first-run tutorial.
+- `strings` overrides UI text; `tour={false}` disables the editor's first-run
+  tutorial.
+
+### Localizing the UI
+
+`strings` covers the module's own chrome (`DEFAULT_STRINGS`) plus the editor
+labels that already went through the strings layer
+(`DEFAULT_EDITOR_STRINGS`, exported from `@pibytelabs/typeset/editor`); the
+module forwards them, and `<TemplateEditor strings={...}/>` takes the editor
+half on its own. Both default to Spanish.
+
+```tsx
+<TemplatesModule strings={{ save: 'Save', tableIncludeImages: 'Include images' }} ... />
+```
+
+The editor's older labels are still written inline and are being moved into
+`DEFAULT_EDITOR_STRINGS` as their components are touched — so today the
+override covers the module and the newest editor controls, not every string
+in the canvas.
 
 Need only the canvas? Use `<TemplateEditor value onChange models assets/>`
 directly. It is a controlled component (`onChange` debounced 500 ms).

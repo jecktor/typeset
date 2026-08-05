@@ -28,7 +28,17 @@ export const cotizacionModel: ModelDescriptor = {
     { kind: 'scalar', key: 'totals.subtotal', label: 'Subtotal', type: 'currency' },
     { kind: 'scalar', key: 'totals.tax', label: 'Impuesto', type: 'currency' },
     { kind: 'scalar', key: 'totals.total', label: 'Total', type: 'currency' },
-    { kind: 'list', key: 'items', label: 'Partidas', itemFields }
+    // Only the quote carries product photos — the other two exercise tables
+    // without them, and remisión slices `itemFields` so it must stay as-is.
+    {
+      kind: 'list',
+      key: 'items',
+      label: 'Partidas',
+      itemFields: [
+        { key: 'photo', label: 'Foto', type: 'image-url' as const },
+        ...itemFields
+      ]
+    }
   ],
   sample
 };

@@ -143,14 +143,16 @@ describe('createStarterTemplate', () => {
     expect(table.kind).toBe('table');
     if (table.kind !== 'table') return;
     expect(table.binding).toBe('items');
+    // Line-item reading order, whatever order the model declared: how many,
+    // what it is, what it costs.
     expect(table.columns.map(c => c.itemKey)).toEqual([
-      'description',
       'qty',
+      'description',
       'total'
     ]);
     // Numbers and money right-aligned, free text flexes.
-    expect(table.columns.map(c => c.align)).toEqual(['left', 'right', 'right']);
-    expect(table.columns[0]!.width).toBe('flex');
+    expect(table.columns.map(c => c.align)).toEqual(['right', 'left', 'right']);
+    expect(table.columns[1]!.width).toBe('flex');
   });
 
   it('sets margins that match the content region', () => {
@@ -239,5 +241,104 @@ describe('createStarterTemplate', () => {
     expect(first.yBottom).toBeGreaterThan(first.yTop);
     expect(middle.yBottom).toBeGreaterThan(middle.yTop);
     expect(validateTemplate(short, cotizacion).filter(i => i.severity === 'error')).toEqual([]);
+  });
+});
+
+describe('createStarterTemplate — product images', () => {
+  const withPhotos: ModelDescriptor = {
+    ...cotizacion,
+    fields: cotizacion.fields.map(f =>
+      f.kind === 'list'
+        ? {
+            ...f,
+            itemFields: [
+              { key: 'photo', label: 'Foto', type: 'image-url' as const },
+              ...f.itemFields
+            ]
+          }
+        : f
+    )
+  };
+
+  it('orders columns foto, cantidad, descripción, total', () => {
+    // Declared in a deliberately scrambled order.
+    const scrambled: ModelDescriptor = {
+      ...cotizacion,
+      fields: cotizacion.fields.map(f =>
+        f.kind === 'list'
+          ? {
+              ...f,
+              itemFields: [
+                { key: 'total', label: 'Total', type: 'currency' as const },
+                { key: 'description', label: 'Descripción', type: 'string' as const },
+                { key: 'photo', label: 'Foto', type: 'image-url' as const },
+                { key: 'qty', label: 'Cantidad', type: 'number' as const }
+              ]
+            }
+          : f
+      )
+    };
+    const template = createStarterTemplate({
+      id: 'tpl-order',
+      docType: 'carta',
+      descriptor: scrambled
+    });
+    const table = template.flow!.stack.find(i => i.kind === 'table')!;
+    expect(table.columns.map(c => c.itemKey)).toEqual([
+      'photo',
+      'qty',
+      'description',
+      'total'
+    ]);
+  });
+
+  it('keeps the declared order among fields of the same type', () => {
+    const twoMoneyFields: ModelDescriptor = {
+      ...cotizacion,
+      fields: cotizacion.fields.map(f =>
+        f.kind === 'list'
+          ? {
+              ...f,
+              itemFields: [
+                { key: 'subtotal', label: 'Subtotal', type: 'currency' as const },
+                { key: 'tax', label: 'Impuesto', type: 'currency' as const },
+                { key: 'total', label: 'Total', type: 'currency' as const }
+              ]
+            }
+          : f
+      )
+    };
+    const template = createStarterTemplate({
+      id: 'tpl-money',
+      docType: 'carta',
+      descriptor: twoMoneyFields
+    });
+    const table = template.flow!.stack.find(i => i.kind === 'table')!;
+    expect(table.columns.map(c => c.itemKey)).toEqual(['subtotal', 'tax', 'total']);
+  });
+
+  it('turns a picture field into an image column, images on', () => {
+    const template = createStarterTemplate({
+      id: 'tpl-img',
+      docType: 'carta',
+      descriptor: withPhotos
+    });
+    const table = template.flow!.stack.find(i => i.kind === 'table')!;
+    const photo = table.columns[0]!;
+    expect(photo).toMatchObject({ itemKey: 'photo', kind: 'image', align: 'center' });
+    expect(photo.format).toBeUndefined();
+    expect(table.images).toEqual({ enabled: true });
+    expect(validateTemplate(template, withPhotos).filter(i => i.severity === 'error')).toEqual([]);
+  });
+
+  it('leaves images unconfigured for models without pictures', () => {
+    const template = createStarterTemplate({
+      id: 'tpl-plain',
+      docType: 'carta',
+      descriptor: cotizacion
+    });
+    const table = template.flow!.stack.find(i => i.kind === 'table')!;
+    expect(table.images).toBeUndefined();
+    expect(table.columns.every(c => c.kind === undefined)).toBe(true);
   });
 });

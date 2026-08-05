@@ -19,6 +19,10 @@ finished PDF, on the server or in the browser.
 - **Growing tables**: bind a table to a list (order items, invoice concepts)
   and it grows row by row, overflowing onto continuation pages with repeated
   headers and totals that never get orphaned.
+- **Product photos in line items**: a table column can draw the item's
+  picture instead of text, with a fallback for products that have none. The
+  template author switches images on or off, and whoever issues the document
+  can override that per PDF — the column disappears and the table reflows.
 - **Multi-page layouts**: the first page, the middle pages and the last page
   can each have their own design and their own background PDF. Elements can
   be scoped to any of them and pinned to the bottom edge.
@@ -133,6 +137,10 @@ controlled component you can embed on its own.
 - **Flow** is an ordered stack (`table | text-block | image-block | spacer`)
   laid out top-down inside a region. Content that does not fit continues on
   the next page automatically.
+- **Image columns**: a table column with `kind: 'image'` draws the row's
+  picture (an `image-url` field: a URL or an assetId). Rows without one fall
+  back to the table's `images.fallbackAssetId`, or to the placeholder the
+  package ships. `renderPdf({ includeImages })` decides per document.
 - **Templates are versioned JSON**: always load them through
   `parseTemplate`, which validates, migrates old versions forward and
   refuses versions newer than the installed library.
