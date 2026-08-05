@@ -199,6 +199,8 @@ export function demoSample() {
   const tax = items.reduce((a, it) => a + it.tax, 0);
   return {
     cotizacionNumber: 'COT-20260001',
+    // The demo's image-block binding; without it preview warns and skips.
+    productImageUrl: 'product-a',
     date: new Date(2026, 6, 31),
     customerName: 'Cliente de Ejemplo SA de CV',
     taxPercentage: 16,
